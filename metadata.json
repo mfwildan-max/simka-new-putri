@@ -1,0 +1,7 @@
+{
+  "name": "SIMKA.ID - Sistem Monitoring Karakter & Akhlak Santri",
+  "description": "Dashboard administrasi pembinaan akhlak dan karakter santri modern untuk Koordinator dan Kasie Pembinaan Pesantren.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

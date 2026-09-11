@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-app: #F7F9FC;
+    --bg-surface: #FFFFFF;
+    --border-color: #E2E8F0;
+    --text-primary: #0F172A;
+    --text-secondary: #64748B;
+    --primary-color: #059669;
+  }
+
+  .dark {
+    --bg-app: #07101F;
+    --bg-surface: #101C2F;
+    --border-color: #1E3048;
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    --primary-color: #10B981;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* Custom sleek scrollbar for tables and sidebar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #1E293B;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Print Stylesheet for A4 Form Pembinaan */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm 8mm 10mm;
+  }
+
+  body {
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
+    font-family: 'Times New Roman', Times, serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide entire web app UI */
+  header, nav, aside, footer, .no-print, [role="dialog"] > div:first-child {
+    display: none !important;
+  }
+
+  /* Make modal container full print */
+  .fixed {
+    position: static !important;
+    background: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  .form-pembinaan-a4-page {
+    display: flex !important;
+    visibility: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    min-height: 270mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background-color: #FFFFFF !important;
+    color: #000000 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .form-pembinaan-a4-page * {
+    visibility: visible !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+}
+

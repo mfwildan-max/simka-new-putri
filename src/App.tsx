@@ -1,0 +1,88 @@
+import React, { useState } from 'react';
+import { AppProvider, useApp } from './context/AppContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { Sidebar } from './components/layout/Sidebar';
+import { TopNavigation } from './components/layout/TopNavigation';
+import { DashboardView } from './components/views/DashboardView';
+import { RekapPelanggaranView } from './components/views/RekapPelanggaranView';
+import { DataSantriView } from './components/views/DataSantriView';
+import { DataPelanggaranView } from './components/views/DataPelanggaranView';
+import { CatatPelanggaranView } from './components/views/CatatPelanggaranView';
+import { DataPembinaanView } from './components/views/DataPembinaanView';
+import { RiwayatPembinaanView } from './components/views/RiwayatPembinaanView';
+import { LaporanPembinaanView } from './components/views/LaporanPembinaanView';
+import { AkunView } from './components/views/AkunView';
+import { ManajemenUserView } from './components/views/ManajemenUserView';
+import { LoginView } from './components/views/LoginView';
+import { DetailSantriModal } from './components/common/DetailSantriModal';
+import { ToastContainer } from './components/common/Toast';
+
+const AppContent: React.FC = () => {
+  const { currentRoute, isAuthenticated, user } = useApp();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // If not logged in, show the simple username/password Login screen
+  if (!isAuthenticated || !user) {
+    return <LoginView />;
+  }
+
+  const renderActiveView = () => {
+    switch (currentRoute) {
+      case 'dashboard':
+        return <DashboardView />;
+      case 'rekap-pelanggaran':
+        return <RekapPelanggaranView />;
+      case 'data-santri':
+        return <DataSantriView />;
+      case 'data-pelanggaran':
+      case 'kamus-pelanggaran':
+        return <DataPelanggaranView />;
+      case 'catat-pelanggaran':
+        return <CatatPelanggaranView />;
+      case 'data-pembinaan':
+        return <DataPembinaanView />;
+      case 'riwayat-pembinaan':
+        return <RiwayatPembinaanView />;
+      case 'laporan-pembinaan':
+        return <LaporanPembinaanView />;
+      case 'manajemen-user':
+        return <ManajemenUserView />;
+      case 'akun':
+        return <AkunView />;
+      default:
+        return <DashboardView />;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-[#070E1A] text-slate-900 dark:text-slate-100 flex flex-col lg:flex-row antialiased transition-colors duration-200">
+      {/* Sidebar Navigation */}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Main Content Area */}
+      <div className="flex-1 lg:pl-[285px] flex flex-col min-w-0 min-h-screen">
+        {/* Top Navigation Bar */}
+        <TopNavigation onOpenSidebar={() => setSidebarOpen(true)} />
+
+        {/* Dynamic Page Content */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+          {renderActiveView()}
+        </main>
+      </div>
+
+      {/* Modals & Notification Containers */}
+      <DetailSantriModal />
+      <ToastContainer />
+    </div>
+  );
+};
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </ThemeProvider>
+  );
+}

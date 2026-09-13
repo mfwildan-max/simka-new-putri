@@ -20,15 +20,243 @@ import {
 } from '../data/mockData';
 import { hashPassword, verifyPassword } from './auth';
 
-const env = (import.meta as any).env || {};
-const supabaseUrl = env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || '';
+export const STORAGE_KEY_SUPABASE_URL = 'SIMKA_SUPABASE_URL';
+export const STORAGE_KEY_SUPABASE_KEY = 'SIMKA_SUPABASE_ANON_KEY';
+export const STORAGE_KEY_OFFLINE_MODE = 'SIMKA_SUPABASE_OFFLINE_MODE';
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+export function getActiveSupabaseConfig(): { url: string; anonKey: string; isCustom: boolean; offlineMode: boolean } {
+  const customUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_SUPABASE_URL) || '' : '';
+  const customKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_SUPABASE_KEY) || '' : '';
+  const offlineMode = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_OFFLINE_MODE) === 'true' : false;
 
-export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+  const env = (import.meta as any).env || {};
+  const envUrl = env.VITE_SUPABASE_URL || '';
+  const envKey = env.VITE_SUPABASE_ANON_KEY || '';
+
+  const url = (customUrl.trim() || envUrl.trim());
+  const anonKey = (customKey.trim() || envKey.trim());
+
+  return {
+    url,
+    anonKey,
+    isCustom: Boolean(customUrl.trim() || customKey.trim()),
+    offlineMode
+  };
+}
+
+let activeClient: any = null;
+let lastKey = '';
+
+export function getSupabaseClient() {
+  const config = getActiveSupabaseConfig();
+  if (config.offlineMode || !config.url || !config.anonKey) {
+    return null;
+  }
+  const currentKey = `${config.url}|${config.anonKey}`;
+  if (activeClient && lastKey === currentKey) {
+    return activeClient;
+  }
+  try {
+    activeClient = createClient(config.url, config.anonKey);
+    lastKey = currentKey;
+    return activeClient;
+  } catch (err) {
+    console.error('[SIMKA.ID] Supabase Client Init Error:', err);
+    return null;
+  }
+}
+
+export function saveCustomSupabaseConfig(url: string, anonKey: string): void {
+  if (typeof window === 'undefined') return;
+  if (url.trim()) {
+    localStorage.setItem(STORAGE_KEY_SUPABASE_URL, url.trim());
+  } else {
+    localStorage.removeItem(STORAGE_KEY_SUPABASE_URL);
+  }
+  if (anonKey.trim()) {
+    localStorage.setItem(STORAGE_KEY_SUPABASE_KEY, anonKey.trim());
+  } else {
+    localStorage.removeItem(STORAGE_KEY_SUPABASE_KEY);
+  }
+  activeClient = null;
+  lastKey = '';
+}
+
+export function clearCustomSupabaseConfig(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(STORAGE_KEY_SUPABASE_URL);
+  localStorage.removeItem(STORAGE_KEY_SUPABASE_KEY);
+  activeClient = null;
+  lastKey = '';
+}
+
+export function setOfflineMode(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  if (enabled) {
+    localStorage.setItem(STORAGE_KEY_OFFLINE_MODE, 'true');
+  } else {
+    localStorage.removeItem(STORAGE_KEY_OFFLINE_MODE);
+  }
+  activeClient = null;
+  lastKey = '';
+}
+
+export function isSupabaseConfigured(): boolean {
+  const cfg = getActiveSupabaseConfig();
+  return Boolean(cfg.url && cfg.anonKey && !cfg.offlineMode);
+}
+
+export function translateSupabaseError(error: any): string {
+  if (!error) return 'Terjadi kesalahan sistem yang tidak diketahui.';
+  const msg = typeof error === 'string' ? error : error.message || error.error_description || JSON.stringify(error);
+
+  if (msg.includes('Invalid API key') || msg.includes('JWT') || msg.includes('apikey') || msg.includes('unauthorized') || msg.includes('401')) {
+    return 'Kunci API Supabase (anon key) tidak valid atau kedaluwarsa. Periksa kredensial di menu Pengaturan Database.';
+  }
+  if (msg.includes('relation') && msg.includes('does not exist')) {
+    return 'Tabel database di Supabase belum dibuat. Silakan salin & jalankan skrip SQL migrasi di Supabase SQL Editor melalui menu Pengaturan Database.';
+  }
+  if (msg.includes('row-level security') || msg.includes('RLS') || msg.includes('policy')) {
+    return 'Akses database dibatasi oleh kebijakan RLS Supabase. Pastikan tabel memiliki izin SELECT/INSERT/UPDATE untuk role anon.';
+  }
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch failed')) {
+    return 'Gagal terhubung ke server database Supabase. Periksa koneksi internet atau status URL proyek Supabase.';
+  }
+  if (msg.includes('duplicate key') || msg.includes('unique constraint') || msg.includes('already exists')) {
+    return 'Data dengan kode atau username yang sama sudah terdaftar di database.';
+  }
+  return msg;
+}
+
+export async function testSupabaseConnection(customUrl?: string, customKey?: string): Promise<{
+  success: boolean;
+  message: string;
+  tablesFound: string[];
+  missingTables: string[];
+  latencyMs?: number;
+}> {
+  const config = getActiveSupabaseConfig();
+  const url = (customUrl ?? config.url).trim();
+  const key = (customKey ?? config.anonKey).trim();
+
+  if (!url || !key) {
+    return {
+      success: false,
+      message: 'URL Proyek Supabase atau Kunci Anon API belum diisi.',
+      tablesFound: [],
+      missingTables: ['users', 'santri', 'master_pelanggaran', 'pelanggaran', 'master_pembinaan', 'pembinaan']
+    };
+  }
+
+  if (!url.startsWith('https://') || !url.includes('.supabase.co')) {
+    return {
+      success: false,
+      message: 'Format URL Supabase tidak valid. Format harus diawali https:// dan berakhiran .supabase.co (contoh: https://xyz.supabase.co)',
+      tablesFound: [],
+      missingTables: []
+    };
+  }
+
+  const startTime = Date.now();
+  try {
+    const testClient = createClient(url, key);
+    const requiredTables = ['users', 'santri', 'master_pelanggaran', 'pelanggaran', 'master_pembinaan', 'pembinaan'];
+    const tablesFound: string[] = [];
+    const missingTables: string[] = [];
+
+    // Test a basic select on users
+    const { data: usersData, error: usersError } = await testClient.from('users').select('id').limit(1);
+
+    if (usersError) {
+      if (usersError.message.includes('Invalid API key') || usersError.message.includes('apikey') || usersError.message.includes('JWT') || usersError.message.includes('unauthorized')) {
+        return {
+          success: false,
+          message: 'Kunci Anon API tidak valid (Invalid API key). Pastikan menyalin "anon public" key dari menu Project Settings > API di Supabase.',
+          tablesFound: [],
+          missingTables: requiredTables
+        };
+      }
+      if (usersError.message.includes('relation') && usersError.message.includes('does not exist')) {
+        return {
+          success: false,
+          message: 'Koneksi ke Supabase BERHASIL, tetapi tabel belum dibuat! Silakan salin skrip SQL kami dan jalankan di Supabase SQL Editor.',
+          tablesFound: [],
+          missingTables: requiredTables
+        };
+      }
+      return {
+        success: false,
+        message: `Koneksi gagal: ${translateSupabaseError(usersError)}`,
+        tablesFound: [],
+        missingTables: requiredTables
+      };
+    }
+
+    tablesFound.push('users');
+
+    await Promise.all(
+      ['santri', 'master_pelanggaran', 'pelanggaran', 'master_pembinaan', 'pembinaan'].map(async (tbl) => {
+        const { error } = await testClient.from(tbl).select('id').limit(1);
+        if (!error) {
+          tablesFound.push(tbl);
+        } else {
+          missingTables.push(tbl);
+        }
+      })
+    );
+
+    const latencyMs = Date.now() - startTime;
+
+    if (missingTables.length > 0) {
+      return {
+        success: true,
+        message: `Terhubung ke Supabase (${latencyMs}ms), namun beberapa tabel belum ada (${missingTables.join(', ')}). Jalankan skrip SQL untuk melengkapinya.`,
+        tablesFound,
+        missingTables,
+        latencyMs
+      };
+    }
+
+    return {
+      success: true,
+      message: `Koneksi ke database Supabase BERHASIL dan semua tabel aktif! (${latencyMs}ms)`,
+      tablesFound,
+      missingTables: [],
+      latencyMs
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Gagal terhubung: ${err?.message || 'Periksa koneksi jaringan.'}`,
+      tablesFound: [],
+      missingTables: []
+    };
+  }
+}
+
+// Proxied supabase accessor for backward-compatible call syntax
+export const supabase = {
+  from(table: string) {
+    const client = getSupabaseClient();
+    if (!client) {
+      return {
+        select: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } }),
+        insert: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } }),
+        update: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } }),
+        delete: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } }),
+        upsert: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } })
+      } as any;
+    }
+    return client.from(table);
+  },
+  rpc(fn: string, args?: any) {
+    const client = getSupabaseClient();
+    if (!client) {
+      return Promise.resolve({ data: null, error: { message: 'Database client tidak aktif.' } }) as any;
+    }
+    return client.rpc(fn, args);
+  }
+};
 
 /**
  * Diagnostic logger for Supabase & Auth
@@ -1403,7 +1631,7 @@ export function findPembinaanBySinglePoin(
 // ==============================================================================
 
 export async function fetchPembinaanRecordsFromDB(): Promise<PembinaanRecord[] | null> {
-  if (!supabase) return null;
+  if (!isSupabaseConfigured()) return null;
   try {
     const { data, error } = await supabase
       .from('pembinaan')
@@ -1434,5 +1662,119 @@ export async function fetchPembinaanRecordsFromDB(): Promise<PembinaanRecord[] |
     }));
   } catch (err) {
     return null;
+  }
+}
+
+export async function insertPembinaanRecordToDB(
+  record: {
+    santriId: string;
+    santriNama: string;
+    santriKelas: string;
+    santriUnit: UnitPesantren;
+    pelanggaranTerkaitId?: string;
+    pelanggaranTerkaitJenis?: string;
+    jenisPembinaan: string;
+    tanggal: string;
+    tanggalTargetSelesai?: string;
+    pembina: string;
+    pembinaId?: string;
+    catatan?: string;
+  }
+): Promise<{ success: boolean; data?: PembinaanRecord; error?: string }> {
+  if (!isSupabaseConfigured()) {
+    return {
+      success: true,
+      data: {
+        id: `pem-${Date.now()}`,
+        santriId: record.santriId,
+        santriNama: record.santriNama,
+        santriKelas: record.santriKelas,
+        santriUnit: record.santriUnit,
+        pelanggaranTerkaitId: record.pelanggaranTerkaitId,
+        pelanggaranTerkaitJenis: record.pelanggaranTerkaitJenis,
+        jenisPembinaan: record.jenisPembinaan,
+        tanggal: record.tanggal,
+        tanggalTargetSelesai: record.tanggalTargetSelesai,
+        pembina: record.pembina,
+        pembinaId: record.pembinaId,
+        catatan: record.catatan,
+        status: 'BELUM DIMULAI',
+        created_at: new Date().toISOString()
+      }
+    };
+  }
+
+  try {
+    const payload = {
+      santri_id: record.santriId,
+      santri_nama: record.santriNama,
+      santri_kelas: record.santriKelas,
+      santri_unit: record.santriUnit,
+      pelanggaran_terkait_id: record.pelanggaranTerkaitId || null,
+      pelanggaran_terkait_jenis: record.pelanggaranTerkaitJenis || null,
+      jenis_pembinaan: record.jenisPembinaan,
+      tanggal: record.tanggal,
+      tanggal_target_selesai: record.tanggalTargetSelesai || null,
+      pembina: record.pembina,
+      pembina_id: record.pembinaId || null,
+      catatan: record.catatan || '',
+      status: 'BELUM DIMULAI'
+    };
+
+    const { data, error } = await supabase
+      .from('pembinaan')
+      .insert([payload])
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('[INSERT PEMBINAAN ERROR]', error);
+      return { success: false, error: translateSupabaseError(error) };
+    }
+
+    return {
+      success: true,
+      data: {
+        id: String(data.id),
+        santriId: data.santri_id,
+        santriNama: data.santri_nama,
+        santriKelas: data.santri_kelas,
+        santriUnit: data.santri_unit as UnitPesantren,
+        pelanggaranTerkaitId: data.pelanggaran_terkait_id,
+        pelanggaranTerkaitJenis: data.pelanggaran_terkait_jenis,
+        jenisPembinaan: data.jenis_pembinaan,
+        tanggal: data.tanggal,
+        tanggalTargetSelesai: data.tanggal_target_selesai,
+        pembina: data.pembina,
+        pembinaId: data.pembina_id,
+        catatan: data.catatan,
+        status: data.status,
+        created_at: data.created_at
+      }
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal menyimpan data pembinaan.' };
+  }
+}
+
+export async function updatePembinaanStatusInDB(
+  id: string,
+  status: PembinaanRecord['status'],
+  tanggalSelesai?: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) return { success: true };
+  try {
+    const payload: any = { status };
+    if (tanggalSelesai) payload.tanggal_selesai = tanggalSelesai;
+
+    const { error } = await supabase
+      .from('pembinaan')
+      .update(payload)
+      .eq('id', id);
+
+    if (error) return { success: false, error: translateSupabaseError(error) };
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Gagal memperbarui status pembinaan.' };
   }
 }

@@ -46,7 +46,8 @@ import {
   toggleUserActiveInDB,
   resetUserPasswordInDB,
   authenticateUser,
-  isSupabaseConfigured
+  isSupabaseConfigured,
+  getActiveSupabaseConfig
 } from '../lib/supabase';
 import { 
   canRoleAccessRoute, 
@@ -265,6 +266,13 @@ interface AppContextType {
   getTopPelanggaran: () => Array<{ id: string; nama: string; kategori: string; count: number; totalPoin: number }>;
   getRecentPembinaan: () => PembinaanRecord[];
   getRecentActivities: () => ActivityItem[];
+  // Database Modal & Offline Sync
+  isDatabaseModalOpen: boolean;
+  setIsDatabaseModalOpen: (open: boolean) => void;
+  openDatabaseModal: () => void;
+  closeDatabaseModal: () => void;
+  isOfflineMode: boolean;
+  isSupabaseOnline: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -316,6 +324,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setCurrentRouteState(route);
   };
+
+  // Database modal state
+  const [isDatabaseModalOpen, setIsDatabaseModalOpen] = useState(false);
+  const openDatabaseModal = useCallback(() => setIsDatabaseModalOpen(true), []);
+  const closeDatabaseModal = useCallback(() => setIsDatabaseModalOpen(false), []);
+
+  const dbConfig = getActiveSupabaseConfig();
+  const isOfflineMode = dbConfig.offlineMode;
+  const isSupabaseOnline = isSupabaseConfigured();
 
   // Unit filter for Superadmin (Kasie/Kabid)
   const [selectedKasieUnitFilter, setSelectedKasieUnitFilter] = useState<UnitFilter>('ALL');
@@ -1982,7 +1999,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getTop5Santri,
         getTopPelanggaran,
         getRecentPembinaan,
-        getRecentActivities
+        getRecentActivities,
+        isDatabaseModalOpen,
+        setIsDatabaseModalOpen,
+        openDatabaseModal,
+        closeDatabaseModal,
+        isOfflineMode,
+        isSupabaseOnline
       }}
     >
       {children}

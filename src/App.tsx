@@ -15,10 +15,11 @@ import { AkunView } from './components/views/AkunView';
 import { ManajemenUserView } from './components/views/ManajemenUserView';
 import { LoginView } from './components/views/LoginView';
 import { DetailSantriModal } from './components/common/DetailSantriModal';
+import { DatabaseSettingsModal } from './components/common/DatabaseSettingsModal';
 import { ToastContainer } from './components/common/Toast';
 
 const AppContent: React.FC = () => {
-  const { currentRoute, isAuthenticated, user } = useApp();
+  const { currentRoute, isAuthenticated, user, isDatabaseModalOpen, closeDatabaseModal, refreshData } = useApp();
   const { setAppAuthenticated } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -77,6 +78,11 @@ const AppContent: React.FC = () => {
 
       {/* Modals & Notification Containers */}
       <DetailSantriModal />
+      <DatabaseSettingsModal 
+        isOpen={isDatabaseModalOpen} 
+        onClose={closeDatabaseModal} 
+        onConfigUpdated={refreshData} 
+      />
       <ToastContainer />
     </div>
   );

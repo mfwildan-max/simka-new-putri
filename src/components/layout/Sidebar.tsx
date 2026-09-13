@@ -13,7 +13,8 @@ import {
   LogOut,
   X,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Database
 } from 'lucide-react';
 import { canRoleAccessRoute, getRoleDisplayName } from '../../lib/auth';
 
@@ -40,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed = false,
   onToggleCollapse
 }) => {
-  const { currentRoute, setCurrentRoute, user, logout, stats } = useApp();
+  const { currentRoute, setCurrentRoute, user, logout, stats, openDatabaseModal } = useApp();
 
   if (!user) return null;
 
@@ -248,6 +249,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Bottom Section - Collapse Toggle & Logout */}
         <div className="p-3 border-t border-slate-100 dark:border-[#162740] bg-slate-50/60 dark:bg-[#081221] space-y-1">
+          <button
+            onClick={() => {
+              openDatabaseModal();
+              onClose();
+            }}
+            className={`w-full flex items-center ${
+              isCollapsed ? 'justify-center' : 'gap-3'
+            } px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#0E1A2D] hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer`}
+            title="Pengaturan Database Supabase"
+          >
+            <Database className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            {!isCollapsed && <span>Database & Sinkronisasi</span>}
+          </button>
+
           {onToggleCollapse && (
             <button
               onClick={onToggleCollapse}

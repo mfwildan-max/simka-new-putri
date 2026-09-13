@@ -161,13 +161,22 @@ export const CatatPelanggaranView: React.FC = () => {
       >
         {/* SECTION 1: IDENTITAS SANTRI */}
         <div className="space-y-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-bold text-xs flex items-center justify-center">
-              1
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-bold text-xs flex items-center justify-center">
+                1
+              </div>
+              <h2 className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-wider uppercase">
+                IDENTITAS SANTRI
+              </h2>
             </div>
-            <h2 className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-wider uppercase">
-              IDENTITAS SANTRI
-            </h2>
+            {user && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-[#132138] border border-slate-200 dark:border-[#1E2E4A] text-[11px] text-slate-600 dark:text-slate-300">
+                <span className="text-slate-400 font-normal">Pelapor:</span>
+                <span className="font-bold text-slate-800 dark:text-white">{user.nama}</span>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">({user.title || user.role})</span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

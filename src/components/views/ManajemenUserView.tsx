@@ -271,6 +271,7 @@ export const ManajemenUserView: React.FC = () => {
                 <th className="py-3 px-3.5 w-16">ID</th>
                 <th className="py-3 px-3.5">Nama & Jabatan</th>
                 <th className="py-3 px-3.5">Username</th>
+                {isKasie && <th className="py-3 px-3.5">Password</th>}
                 <th className="py-3 px-3.5">Role</th>
                 <th className="py-3 px-3.5">Unit Penugasan</th>
                 <th className="py-3 px-3.5 text-center">Status</th>
@@ -280,7 +281,7 @@ export const ManajemenUserView: React.FC = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={isKasie ? 7 : 6} className="py-8 text-center text-slate-400 text-xs italic">
+                  <td colSpan={isKasie ? 8 : 6} className="py-8 text-center text-slate-400 text-xs italic">
                     Tidak ada data pengguna yang cocok dengan filter pencarian.
                   </td>
                 </tr>
@@ -313,6 +314,14 @@ export const ManajemenUserView: React.FC = () => {
                       <td className="py-3 px-3.5 font-mono text-blue-600 dark:text-blue-400 text-xs font-bold">
                         @{u.username}
                       </td>
+                      {isKasie && (
+                        <td className="py-3 px-3.5">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[11px] font-mono text-slate-500 dark:text-slate-400 select-none">
+                            <Lock className="w-3 h-3 text-slate-400" />
+                            ••••••••
+                          </span>
+                        </td>
+                      )}
                       <td className="py-3 px-3.5">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold ${

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="id" class="dark">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,12 +9,29 @@
     <meta property="og:description" content="Dashboard administrasi pembinaan akhlak dan karakter santri modern untuk Koordinator dan Kasie Pembinaan Pesantren." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/png" href="/LOGO NURIS KOTAK tanpa tulisan.png" />
+    <!-- Anti-flash theme script: Default to Light mode, only apply dark if user is logged in with dark theme -->
+    <script>
+      (function() {
+        try {
+          var user = localStorage.getItem('simka_user_session') || localStorage.getItem('simka_active_user');
+          var saved = localStorage.getItem('simka_theme') || localStorage.getItem('simka_theme_mode');
+          if (user && saved === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
+    </script>
     <!-- Plus Jakarta Sans Font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-[#0A0F1D] text-slate-100 font-sans antialiased selection:bg-emerald-500 selection:text-white">
+  <body class="bg-[#F7F9FC] dark:bg-[#07101F] text-[#0F172A] dark:text-[#F8FAFC] font-sans antialiased selection:bg-emerald-500 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

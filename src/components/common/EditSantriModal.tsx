@@ -118,17 +118,17 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-[#111D32] border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-[#101C2F] border border-slate-200 dark:border-[#1E3048] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-[#0B1526]">
+        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-[#1E3048] flex items-center justify-between bg-slate-50 dark:bg-[#081221]">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
               <Edit className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Edit Data Santri</h3>
-              <p className="text-xs text-slate-400">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Edit Data Santri</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {santri.nama} • Unit {santri.unit}
               </p>
             </div>
@@ -136,7 +136,7 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
           <button
             onClick={onClose}
             disabled={isDeleting}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors disabled:opacity-40"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#15253F] transition-colors cursor-pointer disabled:opacity-40"
           >
             <X className="w-5 h-5" />
           </button>
@@ -144,30 +144,30 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
 
         {/* Delete Confirmation View */}
         {showConfirmDelete ? (
-          <div className="p-6 space-y-4 bg-[#111D32]">
+          <div className="p-6 space-y-4 bg-white dark:bg-[#101C2F]">
             <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3">
-              <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-              <div className="text-xs text-rose-200 space-y-2">
-                <p className="font-bold text-sm text-rose-300">⚠️ HAPUS SANTRI</p>
+              <ShieldAlert className="w-5 h-5 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-rose-800 dark:text-rose-200 space-y-2">
+                <p className="font-bold text-sm text-rose-600 dark:text-rose-300">⚠️ HAPUS SANTRI</p>
                 <div>
-                  <p className="font-semibold text-white">{santri.nama}</p>
-                  <p className="text-slate-400 text-[11px]">NIS: {santri.nis} • Kelas {santri.kelas} ({santri.unit})</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">{santri.nama}</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-[11px]">NIS: {santri.nis} • Kelas {santri.kelas} ({santri.unit})</p>
                 </div>
                 
                 {santriViolationCount > 0 ? (
-                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[11px] space-y-1">
-                    <p className="font-bold text-amber-300">
+                  <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-[11px] space-y-1">
+                    <p className="font-bold text-amber-700 dark:text-amber-300">
                       Santri ini memiliki {santriViolationCount} data pelanggaran.
                     </p>
                     <p>
                       Jika dilanjutkan, data pelanggaran yang terkait juga akan dihapus (khusus data contoh / testing).
                     </p>
-                    <p className="text-[10px] text-slate-300">
+                    <p className="text-[10px] text-slate-600 dark:text-slate-300">
                       Master Pelanggaran tetap aman dan tidak akan terhapus.
                     </p>
                   </div>
                 ) : (
-                  <p className="text-slate-300 text-[11px]">
+                  <p className="text-slate-600 dark:text-slate-300 text-[11px]">
                     Apakah Anda yakin ingin menghapus data santri ini dari sistem?
                   </p>
                 )}
@@ -179,7 +179,7 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
                 type="button"
                 disabled={isDeleting}
                 onClick={() => setShowConfirmDelete(false)}
-                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
+                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#15253F] transition-colors cursor-pointer disabled:opacity-50"
               >
                 Batal
               </button>
@@ -206,15 +206,15 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
         ) : (
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
             {formError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-2 text-xs text-rose-300">
-                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-2 text-xs text-rose-600 dark:text-rose-300">
+                <AlertCircle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
                 <span>{formError}</span>
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   NIS Santri *
                 </label>
                 <input
@@ -223,12 +223,12 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
                   value={formData.nis}
                   onChange={(e) => setFormData({ ...formData, nis: e.target.value })}
                   placeholder="Contoh: 20261050"
-                  className="w-full bg-[#070D1A] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  className="w-full bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Unit Pesantren *
                 </label>
                 <select
@@ -241,7 +241,7 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
                       musyrifId: ''
                     })
                   }
-                  className="w-full bg-[#070D1A] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+                  className="w-full bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 disabled:opacity-50 cursor-pointer"
                 >
                   <option value="SMP">Unit SMP</option>
                   <option value="MA">Unit MA</option>
@@ -251,7 +251,7 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Nama Lengkap Santri *
               </label>
               <input
@@ -260,13 +260,13 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
                 value={formData.nama}
                 onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
                 placeholder="Contoh: MUHAMMAD FAIZ AL-FARABI"
-                className="w-full bg-[#070D1A] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 uppercase font-medium"
+                className="w-full bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 uppercase font-medium"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Kelas Santri *
                 </label>
                 <input
@@ -275,18 +275,18 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
                   value={formData.kelas}
                   onChange={(e) => setFormData({ ...formData, kelas: e.target.value })}
                   placeholder="Contoh: 7A, 10.1, X-A"
-                  className="w-full bg-[#070D1A] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Musyrif Pembina ({formData.unit})
                 </label>
                 <select
                   value={formData.musyrifId}
                   onChange={(e) => setFormData({ ...formData, musyrifId: e.target.value })}
-                  className="w-full bg-[#070D1A] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                 >
                   <option value="">Pilih Musyrif ({formData.unit})</option>
                   {availableMusyrifs.map((m) => (
@@ -300,7 +300,7 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Gedung Asrama
                 </label>
                 <input
@@ -308,12 +308,12 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
                   value={formData.asrama}
                   onChange={(e) => setFormData({ ...formData, asrama: e.target.value })}
                   placeholder="Contoh: Asrama Abu Bakar"
-                  className="w-full bg-[#070D1A] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Nomor Kamar
                 </label>
                 <input
@@ -321,13 +321,13 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
                   value={formData.kamar}
                   onChange={(e) => setFormData({ ...formData, kamar: e.target.value })}
                   placeholder="Contoh: Kamar 02"
-                  className="w-full bg-[#070D1A] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Keterangan / Catatan Tambahan (Opsional)
               </label>
               <input
@@ -335,17 +335,17 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
                 value={formData.keterangan}
                 onChange={(e) => setFormData({ ...formData, keterangan: e.target.value })}
                 placeholder="Catatan khusus santri..."
-                className="w-full bg-[#070D1A] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048] rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             {/* Actions Bar */}
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+            <div className="pt-3 border-t border-slate-200 dark:border-[#1E3048] flex items-center justify-between">
               {isSuperadmin ? (
                 <button
                   type="button"
                   onClick={() => setShowConfirmDelete(true)}
-                  className="px-3 py-2 rounded-xl text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors flex items-center gap-1.5"
+                  className="px-3 py-2 rounded-xl text-xs font-medium text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Hapus Santri</span>
@@ -358,7 +358,7 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#15253F] transition-colors cursor-pointer"
                 >
                   Batal
                 </button>

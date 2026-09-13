@@ -300,22 +300,22 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-[#0F172A] border border-slate-700/80 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-[#101C2F] border border-slate-200 dark:border-[#1E3048] rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header Modal */}
-        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-[#0B1322] shrink-0">
+        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-[#1E3048] flex items-center justify-between bg-slate-50 dark:bg-[#081221] shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 Import Santri dari Excel
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-normal">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-normal">
                   Unit {selectedImportUnit}
                 </span>
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Unggah template data santri untuk menambah data secara massal tanpa mengubah data MA yang ada.
               </p>
             </div>
@@ -325,7 +325,7 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
               handleResetModal();
               onClose();
             }}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#15253F] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -334,9 +334,9 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
         {/* Content Body */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
           {/* Unit Target Selector & Template Download Bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-[#090E17] border border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048]">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Target Unit Santri:
               </label>
               <div className="flex items-center gap-2">
@@ -358,7 +358,7 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                         isSelected
                           ? 'bg-emerald-600 text-white shadow-md'
-                          : 'bg-[#15233C] text-slate-300 hover:bg-[#1E3050]'
+                          : 'bg-slate-200 dark:bg-[#15233C] text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-[#1E3050]'
                       } ${isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                     >
                       Unit {u}
@@ -372,9 +372,9 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
               <button
                 type="button"
                 onClick={generateSantriExcelTemplate}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-300 hover:bg-blue-600/25 text-xs font-medium transition-colors cursor-pointer w-full sm:w-auto justify-center"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-600/15 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-600/25 text-xs font-medium transition-colors cursor-pointer w-full sm:w-auto justify-center"
               >
-                <Download className="w-4 h-4 text-blue-400" />
+                <Download className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                 <span>Unduh Format Template Excel</span>
               </button>
             </div>
@@ -386,7 +386,7 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-700 hover:border-emerald-500/60 rounded-2xl p-8 text-center cursor-pointer transition-colors bg-[#0B1322]/60 hover:bg-[#0B1322] group"
+              className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500/60 rounded-2xl p-8 text-center cursor-pointer transition-colors bg-slate-50/60 dark:bg-[#0B1628]/60 hover:bg-slate-100 dark:hover:bg-[#0B1628] group"
             >
               <input
                 ref={fileInputRef}
@@ -395,13 +395,13 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                 onChange={handleFileChange}
                 className="hidden"
               />
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition-transform">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-3 group-hover:scale-105 transition-transform">
                 <Upload className="w-6 h-6" />
               </div>
-              <h4 className="text-sm font-semibold text-white mb-1">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-1">
                 Pilih File Excel atau Drag & Drop ke Sini
               </h4>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                 Mendukung format file <strong>.xlsx</strong> atau <strong>.xls</strong>. Format kolom: Kode/NIS, Nama Santri, Unit, Kelas, Musyrif, Asrama/Kamar.
               </p>
             </div>
@@ -409,8 +409,8 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
 
           {/* Error / Alert Message */}
           {errorMessage && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-2.5 text-xs text-rose-300">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-2.5 text-xs text-rose-600 dark:text-rose-300">
+              <AlertCircle className="w-4 h-4 text-rose-500 dark:text-rose-400 shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -419,10 +419,10 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
           {parsedRows.length > 0 && (
             <div className="space-y-4">
               {/* File Info & Status Pills */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[#090E17] border border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-[#0B1628] border border-slate-200 dark:border-[#1E3048]">
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-slate-400" />
-                  <span className="text-xs font-semibold text-slate-200 truncate max-w-xs sm:max-w-md">
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-xs sm:max-w-md">
                     {fileName}
                   </span>
                   <span className="text-xs text-slate-500 font-mono">
@@ -432,7 +432,7 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
 
                 <button
                   onClick={handleResetModal}
-                  className="text-xs text-rose-400 hover:text-rose-300 underline font-medium self-start sm:self-auto cursor-pointer"
+                  className="text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 underline font-medium self-start sm:self-auto cursor-pointer"
                 >
                   Ganti File Excel
                 </button>
@@ -445,12 +445,12 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                   onClick={() => setActiveTabFilter('all')}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     activeTabFilter === 'all'
-                      ? 'bg-slate-800 border-slate-600 ring-1 ring-slate-400'
-                      : 'bg-[#0B1322] border-slate-800 hover:bg-slate-800/60'
+                      ? 'bg-slate-100 dark:bg-slate-800 border-slate-400 dark:border-slate-600 ring-1 ring-slate-400'
+                      : 'bg-slate-50 dark:bg-[#0B1628] border-slate-200 dark:border-[#1E3048] hover:bg-slate-100 dark:hover:bg-slate-800/60'
                   }`}
                 >
-                  <div className="text-[11px] font-medium text-slate-400">Total Baris</div>
-                  <div className="text-lg font-bold text-white mt-0.5">{parsedRows.length}</div>
+                  <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Total Baris</div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">{parsedRows.length}</div>
                 </button>
 
                 <button
@@ -458,15 +458,15 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                   onClick={() => setActiveTabFilter('valid')}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     activeTabFilter === 'valid'
-                      ? 'bg-emerald-950/50 border-emerald-500/60 ring-1 ring-emerald-400'
-                      : 'bg-[#0B1322] border-slate-800 hover:bg-emerald-950/20'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500/60 ring-1 ring-emerald-400'
+                      : 'bg-slate-50 dark:bg-[#0B1628] border-slate-200 dark:border-[#1E3048] hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20'
                   }`}
                 >
-                  <div className="text-[11px] font-medium text-emerald-400 flex items-center gap-1">
+                  <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     <span>Data Valid</span>
                   </div>
-                  <div className="text-lg font-bold text-emerald-300 mt-0.5">{validRows.length}</div>
+                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">{validRows.length}</div>
                 </button>
 
                 <button
@@ -474,15 +474,15 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                   onClick={() => setActiveTabFilter('duplicate')}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     activeTabFilter === 'duplicate'
-                      ? 'bg-amber-950/50 border-amber-500/60 ring-1 ring-amber-400'
-                      : 'bg-[#0B1322] border-slate-800 hover:bg-amber-950/20'
+                      ? 'bg-amber-50 dark:bg-amber-950/50 border-amber-500/60 ring-1 ring-amber-400'
+                      : 'bg-slate-50 dark:bg-[#0B1628] border-slate-200 dark:border-[#1E3048] hover:bg-amber-50/50 dark:hover:bg-amber-950/20'
                   }`}
                 >
-                  <div className="text-[11px] font-medium text-amber-400 flex items-center gap-1">
+                  <div className="text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     <span>Duplikat (Lewati)</span>
                   </div>
-                  <div className="text-lg font-bold text-amber-300 mt-0.5">{duplicateRows.length}</div>
+                  <div className="text-lg font-bold text-amber-700 dark:text-amber-300 mt-0.5">{duplicateRows.length}</div>
                 </button>
 
                 <button
@@ -490,23 +490,23 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                   onClick={() => setActiveTabFilter('error')}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     activeTabFilter === 'error'
-                      ? 'bg-rose-950/50 border-rose-500/60 ring-1 ring-rose-400'
-                      : 'bg-[#0B1322] border-slate-800 hover:bg-rose-950/20'
+                      ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-500/60 ring-1 ring-rose-400'
+                      : 'bg-slate-50 dark:bg-[#0B1628] border-slate-200 dark:border-[#1E3048] hover:bg-rose-50/50 dark:hover:bg-rose-950/20'
                   }`}
                 >
-                  <div className="text-[11px] font-medium text-rose-400 flex items-center gap-1">
+                  <div className="text-[11px] font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1">
                     <AlertCircle className="w-3.5 h-3.5" />
                     <span>Data Error</span>
                   </div>
-                  <div className="text-lg font-bold text-rose-300 mt-0.5">{errorRows.length}</div>
+                  <div className="text-lg font-bold text-rose-700 dark:text-rose-300 mt-0.5">{errorRows.length}</div>
                 </button>
               </div>
 
               {/* Table Data Preview */}
-              <div className="border border-slate-800 rounded-xl overflow-hidden bg-[#0B1322]">
+              <div className="border border-slate-200 dark:border-[#1E3048] rounded-xl overflow-hidden bg-white dark:bg-[#0B1628]">
                 <div className="max-h-64 overflow-y-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#070D1A] text-slate-400 border-b border-slate-800 sticky top-0 font-semibold z-10">
+                    <thead className="bg-slate-100 dark:bg-[#081221] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-[#1E3048] sticky top-0 font-semibold z-10">
                       <tr>
                         <th className="py-2.5 px-3">Baris</th>
                         <th className="py-2.5 px-3">Status</th>
@@ -517,10 +517,10 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                         <th className="py-2.5 px-3">Keterangan / Diagnosa</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                       {displayedRows.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="text-center py-6 text-slate-500">
+                          <td colSpan={7} className="text-center py-6 text-slate-400 dark:text-slate-500">
                             Tidak ada data untuk kategori status ini.
                           </td>
                         </tr>
@@ -528,47 +528,47 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                         displayedRows.map((r, i) => (
                           <tr
                             key={i}
-                            className={`hover:bg-[#121E36]/40 transition-colors ${
+                            className={`hover:bg-slate-50 dark:hover:bg-[#121E36]/40 transition-colors ${
                               r.status === 'valid'
-                                ? 'bg-emerald-950/5'
+                                ? 'bg-emerald-500/5'
                                 : r.status === 'duplicate'
-                                ? 'bg-amber-950/10'
-                                : 'bg-rose-950/15'
+                                ? 'bg-amber-500/5'
+                                : 'bg-rose-500/5'
                             }`}
                           >
                             <td className="py-2 px-3 font-mono text-slate-400">#{r.rowNumber}</td>
                             <td className="py-2 px-3 whitespace-nowrap">
                               {r.status === 'valid' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-semibold">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[10px] font-semibold">
                                   <CheckCircle2 className="w-3 h-3" /> Valid
                                 </span>
                               )}
                               {r.status === 'duplicate' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-semibold">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[10px] font-semibold">
                                   <AlertTriangle className="w-3 h-3" /> Duplikat
                                 </span>
                               )}
                               {r.status === 'error' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-semibold">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-700 dark:text-rose-300 text-[10px] font-semibold">
                                   <AlertCircle className="w-3 h-3" /> Error
                                 </span>
                               )}
                             </td>
-                            <td className="py-2 px-3 font-mono text-slate-200">{r.nis || '-'}</td>
-                            <td className="py-2 px-3 font-medium text-white">{r.nama || '-'}</td>
-                            <td className="py-2 px-3 text-slate-300">
-                              <span className="font-semibold text-emerald-400">{r.unit}</span> - {r.kelas}
+                            <td className="py-2 px-3 font-mono text-slate-700 dark:text-slate-200">{r.nis || '-'}</td>
+                            <td className="py-2 px-3 font-medium text-slate-900 dark:text-white">{r.nama || '-'}</td>
+                            <td className="py-2 px-3 text-slate-600 dark:text-slate-300">
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{r.unit}</span> - {r.kelas}
                             </td>
-                            <td className="py-2 px-3 text-slate-300 text-[11px]">
+                            <td className="py-2 px-3 text-slate-600 dark:text-slate-300 text-[11px]">
                               {r.resolvedMusyrifNama || r.musyrif || '-'}
                             </td>
-                            <td className="py-2 px-3 text-slate-400 text-[11px]">
+                            <td className="py-2 px-3 text-slate-500 dark:text-slate-400 text-[11px]">
                               {r.errorMessage ? (
-                                <span className={r.status === 'duplicate' ? 'text-amber-300' : 'text-rose-300'}>
+                                <span className={r.status === 'duplicate' ? 'text-amber-600 dark:text-amber-300' : 'text-rose-600 dark:text-rose-300'}>
                                   {r.errorMessage}
                                 </span>
                               ) : (
-                                <span className="text-emerald-400">Siap diimport (Insert Baru)</span>
+                                <span className="text-emerald-600 dark:text-emerald-400">Siap diimport (Insert Baru)</span>
                               )}
                             </td>
                           </tr>
@@ -580,11 +580,11 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
               </div>
 
               {/* Import Advice Note */}
-              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-300 flex items-start gap-2">
-                <HelpCircle className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 text-xs text-blue-700 dark:text-blue-300 flex items-start gap-2">
+                <HelpCircle className="w-4 h-4 text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
                 <div>
                   <strong>Aturan Import SIMKA.ID:</strong> Hanya baris dengan status{' '}
-                  <span className="text-emerald-300 font-semibold">Valid ({validRows.length} data)</span>{' '}
+                  <span className="text-emerald-700 dark:text-emerald-300 font-semibold">Valid ({validRows.length} data)</span>{' '}
                   yang akan dimasukkan ke dalam database. Data duplikat dan baris error akan otomatis dilewati tanpa mengganggu proses insert.
                 </div>
               </div>
@@ -593,11 +593,11 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 sm:p-5 border-t border-slate-800 bg-[#0B1322] flex items-center justify-between shrink-0">
-          <div className="text-xs text-slate-400">
+        <div className="p-4 sm:p-5 border-t border-slate-200 dark:border-[#1E3048] bg-slate-50 dark:bg-[#081221] flex items-center justify-between shrink-0">
+          <div className="text-xs text-slate-500 dark:text-slate-400">
             {parsedRows.length > 0 && (
               <span>
-                Akan menambahkan <strong className="text-emerald-400">{validRows.length} santri</strong> ke Unit {selectedImportUnit}.
+                Akan menambahkan <strong className="text-emerald-600 dark:text-emerald-400">{validRows.length} santri</strong> ke Unit {selectedImportUnit}.
               </span>
             )}
           </div>
@@ -609,7 +609,7 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                 handleResetModal();
                 onClose();
               }}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#15253F] transition-colors cursor-pointer"
             >
               Batal
             </button>
@@ -619,7 +619,7 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
                 type="button"
                 onClick={handleExecuteImport}
                 disabled={validRows.length === 0}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md shadow-emerald-950/40 cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md cursor-pointer flex items-center gap-1.5"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Simpan {validRows.length} Data Santri</span>

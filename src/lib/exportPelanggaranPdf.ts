@@ -200,13 +200,14 @@ export function exportRiwayatPelanggaranPDF(
       log.jenisPelanggaranNama || '-',
       `+${log.poin} Poin`,
       kat.label,
+      log.pencatat || 'Petugas',
       log.status || 'Belum Selesai'
     ];
   });
 
   autoTable(doc, {
     startY: currentY,
-    head: [['No', 'Tanggal', 'Nama Santri', 'Kelas / Unit', 'Jenis Pelanggaran', 'Poin', 'Kategori', 'Status']],
+    head: [['No', 'Tanggal', 'Nama Santri', 'Kelas / Unit', 'Jenis Pelanggaran', 'Poin', 'Kategori', 'Pelapor', 'Status']],
     body: tableData,
     theme: 'grid',
     margin: { left: marginX, right: marginX, top: 18, bottom: 18 },
@@ -223,9 +224,9 @@ export function exportRiwayatPelanggaranPDF(
       lineColor: [203, 213, 225]
     },
     bodyStyles: {
-      fontSize: 7.5,
+      fontSize: 7.2,
       textColor: [30, 41, 59], // Slate 800
-      cellPadding: 2.5,
+      cellPadding: 2.2,
       valign: 'middle',
       lineWidth: 0.15,
       lineColor: [226, 232, 240]
@@ -234,14 +235,15 @@ export function exportRiwayatPelanggaranPDF(
       fillColor: [248, 250, 252] // Slate 50
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 8 }, // No
-      1: { cellWidth: 26 },                  // Tanggal
-      2: { fontStyle: 'bold', cellWidth: 34 },// Nama Santri
-      3: { halign: 'center', cellWidth: 18 },// Kelas / Unit
+      0: { halign: 'center', cellWidth: 7 }, // No
+      1: { cellWidth: 23 },                  // Tanggal
+      2: { fontStyle: 'bold', cellWidth: 28 },// Nama Santri
+      3: { halign: 'center', cellWidth: 16 },// Kelas / Unit
       4: { cellWidth: 'auto' },              // Jenis Pelanggaran (auto wrap, no clipping)
-      5: { halign: 'center', fontStyle: 'bold', cellWidth: 15 }, // Poin
-      6: { halign: 'center', cellWidth: 21 }, // Kategori
-      7: { halign: 'center', cellWidth: 18 }  // Status
+      5: { halign: 'center', fontStyle: 'bold', cellWidth: 13 }, // Poin
+      6: { halign: 'center', cellWidth: 18 }, // Kategori
+      7: { cellWidth: 20 },                  // Pelapor
+      8: { halign: 'center', cellWidth: 16 }  // Status
     },
     didParseCell: (data) => {
       // Styling custom for Poin, Kategori, and Status cells
@@ -261,8 +263,8 @@ export function exportRiwayatPelanggaranPDF(
           data.cell.styles.fontStyle = 'bold';
         }
 
-        // Status Column (Index 7)
-        if (data.column.index === 7) {
+        // Status Column (Index 8)
+        if (data.column.index === 8) {
           if (rawRow.status === 'Selesai') {
             data.cell.styles.textColor = [4, 120, 87]; // Emerald 700
             data.cell.styles.fontStyle = 'bold';

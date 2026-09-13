@@ -93,7 +93,7 @@ export interface PembinaanRecord {
   created_at: string;
 }
 
-export type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeMode = 'light' | 'dark';
 
 export type PageRoute = 
   | 'login'

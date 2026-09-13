@@ -71,7 +71,7 @@ export const DeletePelanggaranModal: React.FC<DeletePelanggaranModalProps> = ({
     >
       <div
         id="delete-pelanggaran-dialog"
-        className="relative w-full max-w-lg bg-white dark:bg-card-dark rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+        className="relative w-full max-w-lg bg-white dark:bg-[#101C2F] rounded-2xl shadow-2xl border border-slate-200 dark:border-[#1E3048] overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-rose-100 dark:border-rose-950/40 bg-rose-50/60 dark:bg-rose-950/20">

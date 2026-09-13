@@ -1,27 +1,37 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     --bg-app: #F7F9FC;
     --bg-surface: #FFFFFF;
-    --border-color: #E2E8F0;
+    --bg-sidebar: #FFFFFF;
+    --bg-header: #FFFFFF;
+    --border-color: #E5E7EB;
     --text-primary: #0F172A;
     --text-secondary: #64748B;
+    --bg-input: #FFFFFF;
     --primary-color: #059669;
   }
 
   .dark {
     --bg-app: #07101F;
     --bg-surface: #101C2F;
+    --bg-sidebar: #081221;
+    --bg-header: #081221;
     --border-color: #1E3048;
     --text-primary: #F8FAFC;
     --text-secondary: #94A3B8;
+    --bg-input: #0B1628;
     --primary-color: #10B981;
   }
 
   body {
+    background-color: var(--bg-app);
+    color: var(--text-primary);
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
   }
 }
 
@@ -113,4 +123,5 @@
     page-break-after: auto;
   }
 }
+
 

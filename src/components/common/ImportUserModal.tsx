@@ -131,10 +131,10 @@ export const ImportUserModal: React.FC<ImportUserModalProps> = ({
     >
       <div
         id="import-user-dialog"
-        className="relative w-full max-w-5xl max-h-[90vh] flex flex-col bg-white dark:bg-card-dark rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden"
+        className="relative w-full max-w-5xl max-h-[90vh] flex flex-col bg-white dark:bg-[#101C2F] rounded-2xl shadow-2xl border border-slate-200 dark:border-[#1E3048] overflow-hidden"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-[#1E3048] bg-slate-50/50 dark:bg-[#081221] shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
               <FileSpreadsheet className="w-5 h-5" />
@@ -303,7 +303,7 @@ export const ImportUserModal: React.FC<ImportUserModalProps> = ({
                         <th className="py-2.5 px-3 w-28 text-center">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-card-dark">
+                    <tbody className="divide-y divide-slate-100 dark:divide-[#1E3048]/60 bg-white dark:bg-[#101C2F]">
                       {filteredRows.map((row) => (
                         <tr
                           key={row.rowNumber}

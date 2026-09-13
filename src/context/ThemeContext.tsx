@@ -6,44 +6,30 @@ interface ThemeContextType {
   resolvedTheme: 'light' | 'dark';
   setThemeMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
+  setAppAuthenticated: (isAuth: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [themeMode, setThemeModeState] = useState<ThemeMode>(() => {
     try {
-      const saved = localStorage.getItem('simka_theme_mode');
-      if (saved === 'light' || saved === 'dark' || saved === 'system') {
-        return saved;
+      const saved = localStorage.getItem('simka_theme') || localStorage.getItem('simka_theme_mode');
+      if (saved === 'dark') {
+        return 'dark';
+      }
+      if (saved === 'light') {
+        return 'light';
       }
     } catch (e) {
-      // fallback
+      // fallback to light
     }
-    return 'light'; // Default to modern clean light theme as requested, with instant toggle to dark
+    return 'light'; // Default is TERANG / LIGHT
   });
 
-  const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent) => {
-      setSystemPrefersDark(e.matches);
-    };
-
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  const resolvedTheme: 'light' | 'dark' =
-    themeMode === 'system' ? (systemPrefersDark ? 'dark' : 'light') : themeMode;
+  // Default is 'light'. If user chooses 'dark', it applies to Login and the app.
+  const resolvedTheme: 'light' | 'dark' = themeMode === 'dark' ? 'dark' : 'light';
 
   useEffect(() => {
     const root = document.documentElement;
@@ -52,32 +38,42 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (resolvedTheme === 'dark') {
       root.classList.add('dark');
       body.classList.add('dark');
-      body.style.backgroundColor = '#07101F';
-      body.style.color = '#F8FAFC';
     } else {
       root.classList.remove('dark');
       body.classList.remove('dark');
-      body.style.backgroundColor = '#F7F9FC';
-      body.style.color = '#0F172A';
     }
+  }, [resolvedTheme]);
 
+  const setThemeMode = (mode: ThemeMode) => {
+    const nextMode: ThemeMode = mode === 'dark' ? 'dark' : 'light';
+    setThemeModeState(nextMode);
     try {
-      localStorage.setItem('simka_theme_mode', themeMode);
+      localStorage.setItem('simka_theme', nextMode);
+      localStorage.setItem('simka_theme_mode', nextMode);
     } catch (e) {
       // ignore
     }
-  }, [themeMode, resolvedTheme]);
-
-  const setThemeMode = (mode: ThemeMode) => {
-    setThemeModeState(mode);
   };
 
   const toggleTheme = () => {
-    setThemeModeState((prev) => (prev === 'light' ? 'dark' : 'light'));
+    const nextMode: ThemeMode = themeMode === 'light' ? 'dark' : 'light';
+    setThemeMode(nextMode);
+  };
+
+  const setAppAuthenticated = (isAuth: boolean) => {
+    setIsAuthenticated(isAuth);
   };
 
   return (
-    <ThemeContext.Provider value={{ themeMode, resolvedTheme, setThemeMode, toggleTheme }}>
+    <ThemeContext.Provider
+      value={{
+        themeMode,
+        resolvedTheme,
+        setThemeMode,
+        toggleTheme,
+        setAppAuthenticated,
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );
@@ -90,3 +86,5 @@ export const useTheme = () => {
   }
   return context;
 };
+
+

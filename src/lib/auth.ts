@@ -112,6 +112,7 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
         route === 'data-santri' ||
         route === 'catat-pelanggaran' ||
         route === 'rekap-pelanggaran' ||
+        route === 'data-pelanggaran' ||
         route === 'data-pembinaan' ||
         route === 'riwayat-pembinaan'
       );
@@ -122,6 +123,7 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
         route === 'data-santri' ||
         route === 'catat-pelanggaran' ||
         route === 'rekap-pelanggaran' ||
+        route === 'data-pelanggaran' ||
         route === 'data-pembinaan' ||
         route === 'riwayat-pembinaan' ||
         route === 'laporan-pembinaan'

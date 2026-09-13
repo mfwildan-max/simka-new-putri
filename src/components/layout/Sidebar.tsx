@@ -131,9 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               isCollapsed ? 'justify-center w-full' : ''
             }`}
           >
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/20 shrink-0">
-              <MosqueLogoIcon className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
-            </div>
+            <MosqueLogoIcon className="w-10 h-10 group-hover:scale-105 transition-transform shrink-0" />
 
             {!isCollapsed && (
               <div className="min-w-0">
@@ -143,9 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                 </div>
                 <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 leading-tight">
-                  Sistem Monitoring
-                  <br />
-                  Karakter & Akhlak Santri
+                  Karakter &amp; Akhlak Santri
                 </p>
               </div>
             )}

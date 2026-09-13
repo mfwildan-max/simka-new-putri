@@ -79,8 +79,10 @@ interface AppContextType {
   selectedSantriForDetail: Santri | null;
   setSelectedSantriForDetail: (santri: Santri | null) => void;
   // Auth & Session
-  login: (username: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
+  // Rekap Pelanggaran Record Management
+  deleteRiwayatPelanggaran: (id: string) => { success: boolean; message: string };
   // Master Pelanggaran Management (Kasie Superadmin)
   addPelanggaran: (data: {
     kode?: string;
@@ -249,10 +251,10 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 1. User & Session State (Persistent across reload)
+  // 1. User & Session State (Persistent across reload or session storage)
   const [user, setUser] = useState<UserAccount | null>(() => {
     try {
-      const savedSession = localStorage.getItem('simka_session');
+      const savedSession = localStorage.getItem('simka_session') || sessionStorage.getItem('simka_session');
       if (savedSession) {
         const parsed = JSON.parse(savedSession);
         if (parsed && parsed.id && parsed.username && parsed.role) {
@@ -270,7 +272,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Current Route: if not logged in, enforce login page
   const [currentRoute, setCurrentRouteState] = useState<PageRoute>(() => {
     try {
-      const savedSession = localStorage.getItem('simka_session');
+      const savedSession = localStorage.getItem('simka_session') || sessionStorage.getItem('simka_session');
       if (savedSession) {
         const parsed = JSON.parse(savedSession);
         if (parsed && parsed.role) {
@@ -481,11 +483,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // --------------------------------------------------------------------------
   // AUTHENTICATION & SESSION
   // --------------------------------------------------------------------------
-  const login = async (usernameInput: string, passwordInput: string): Promise<{ success: boolean; message?: string }> => {
+  const login = async (
+    usernameInput: string,
+    passwordInput: string,
+    rememberMe: boolean = true
+  ): Promise<{ success: boolean; message?: string }> => {
     const result = await authenticateUser(usernameInput, passwordInput, usersList);
     if (result.success && result.user) {
       setUser(result.user);
-      localStorage.setItem('simka_session', JSON.stringify(result.user));
+      if (rememberMe) {
+        localStorage.setItem('simka_session', JSON.stringify(result.user));
+        sessionStorage.removeItem('simka_session');
+      } else {
+        sessionStorage.setItem('simka_session', JSON.stringify(result.user));
+        localStorage.removeItem('simka_session');
+      }
       const targetRoute = getDefaultRouteForRole(result.user.role);
       setCurrentRouteState(targetRoute);
       showToast(
@@ -500,6 +512,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = () => {
     localStorage.removeItem('simka_session');
+    sessionStorage.removeItem('simka_session');
     setUser(null);
     setCurrentRouteState('login');
     showToast('Sesi Berakhir', 'Anda telah keluar dari sistem SIMKA.ID dengan aman.', 'info');
@@ -1561,6 +1574,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const deleteRiwayatPelanggaran = (id: string): { success: boolean; message: string } => {
+    if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
+      showToast('Akses Ditolak', 'Anda tidak memiliki izin untuk menghapus data pelanggaran.', 'error');
+      return { success: false, message: 'Anda tidak memiliki izin untuk menghapus data pelanggaran.' };
+    }
+
+    const targetRecord = allRiwayatList.find((r) => r.id === id);
+    if (!targetRecord) {
+      showToast('Gagal Menghapus', 'Catatan pelanggaran tidak ditemukan.', 'error');
+      return { success: false, message: 'Catatan pelanggaran tidak ditemukan.' };
+    }
+
+    // 1. Remove from all riwayat list
+    setAllRiwayatList((prev) => prev.filter((r) => r.id !== id));
+
+    // 2. Recalculate Santri's total point & status pembinaan
+    setAllSantriList((prev) =>
+      prev.map((s) => {
+        if (s.id === targetRecord.santriId || s.nama === targetRecord.santriNama) {
+          const newPoin = Math.max(0, s.totalPoin - targetRecord.poin);
+          let newStatus: Santri['statusPembinaan'] = 'Baik';
+          if (newPoin >= 100) newStatus = 'SP 3';
+          else if (newPoin >= 70) newStatus = 'SP 2';
+          else if (newPoin >= 40) newStatus = 'SP 1';
+          else if (newPoin > 0) newStatus = 'Peringatan Lisan';
+          return {
+            ...s,
+            totalPoin: newPoin,
+            statusPembinaan: newStatus
+          };
+        }
+        return s;
+      })
+    );
+
+    showToast(
+      'Pelanggaran Dihapus',
+      `Catatan pelanggaran ${targetRecord.santriNama} (${targetRecord.jenisPelanggaranNama}) berhasil dihapus permanen. Poin santri telah disesuaikan.`,
+      'success'
+    );
+    return { success: true, message: 'Catatan pelanggaran berhasil dihapus.' };
+  };
+
   const updateUserPassword = async (oldPass: string, newPass: string, confirmPass: string): Promise<{ success: boolean; message: string }> => {
     if (!oldPass || !newPass || !confirmPass) {
       return { success: false, message: 'Semua field kata sandi wajib diisi!' };
@@ -1863,6 +1919,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedSantriForDetail,
         login,
         logout,
+        deleteRiwayatPelanggaran,
         addPelanggaran,
         updatePelanggaran,
         deletePelanggaran,

@@ -30,6 +30,8 @@ export const DataSantriView: React.FC = () => {
   const {
     santriList,
     allSantriList,
+    allRiwayatList,
+    riwayatList,
     setSelectedSantriForDetail,
     user,
     addSantri,
@@ -164,8 +166,10 @@ export const DataSantriView: React.FC = () => {
       showToast('Akses Ditolak', 'Hanya Kasie Kepesantrenan yang dapat mengekspor data santri.', 'error');
       return;
     }
-    const unitLabel = isSuperadmin ? selectedKasieUnitFilter : user?.unit || 'ALL';
-    exportSantriToExcel(filteredSantri, `Data_Santri_${unitLabel}_${new Date().toISOString().slice(0, 10)}`, user?.role);
+    const unitLabel = isSuperadmin 
+      ? (selectedKasieUnitFilter === 'ALL' ? 'Semua Unit' : `Unit ${selectedKasieUnitFilter}`)
+      : `Unit ${user?.unit || 'ALL'}`;
+    exportSantriToExcel(filteredSantri, unitLabel, user?.role, allRiwayatList || riwayatList);
   };
 
   return (

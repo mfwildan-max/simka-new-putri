@@ -1,6 +1,16 @@
 import { utils, write, read } from 'xlsx';
-import { UnitPesantren, UserRole, UserAccount, Pelanggaran } from '../types';
+import { UnitPesantren, UserRole, UserAccount, Pelanggaran, RiwayatPelanggaran } from '../types';
 import { getKategoriFromPoin, KategoriPelanggaranType } from '../components/common/PointBadge';
+
+/**
+ * Safely sanitize and truncate Excel sheet names (max 31 characters, remove invalid chars \ / ? * : [ ])
+ */
+export function sanitizeSheetName(name: string, fallback = 'Sheet1'): string {
+  if (!name || typeof name !== 'string') return fallback;
+  const sanitized = name.replace(/[\\/?*:[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!sanitized) return fallback;
+  return sanitized.slice(0, 31);
+}
 
 export interface SantriImportRow {
   rowNumber: number;
@@ -767,10 +777,37 @@ export function generateSantriExcelTemplate(): void {
 }
 
 /**
+ * Helper to format date into DD/MM/YYYY
+ */
+function formatViolationDateForExcel(dateStr?: string): string {
+  if (!dateStr) return '-';
+  const cleanStr = String(dateStr).trim();
+  // If format is YYYY-MM-DD or starts with YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(cleanStr)) {
+    const parts = cleanStr.slice(0, 10).split('-');
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  // If format is already DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(cleanStr)) {
+    return cleanStr.slice(0, 10);
+  }
+  const d = new Date(cleanStr);
+  if (!isNaN(d.getTime())) {
+    const day = String(d.getDate()).padStart(2, '0');
+    const mon = String(d.getMonth() + 1).padStart(2, '0');
+    const yr = d.getFullYear();
+    return `${day}/${mon}/${yr}`;
+  }
+  return cleanStr;
+}
+
+/**
  * Export Santri list to Excel (Restricted to Kasie)
+ * Includes full violation history per santri in 'Riwayat Pelanggaran' column with Pelapor details.
  */
 export function exportSantriToExcel(
   santriList: Array<{
+    id?: string;
     nis: string;
     nama: string;
     unit: string;
@@ -783,13 +820,15 @@ export function exportSantriToExcel(
     keterangan?: string;
   }>,
   unitLabel: string,
-  userRole?: UserRole
+  userRole?: UserRole,
+  riwayatList?: RiwayatPelanggaran[]
 ): void {
   if (userRole && userRole !== 'KASIE_KEPESANTRENAN') {
     throw new Error('Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang mengekspor data santri.');
   }
 
   const headers = [
+    'No',
     'Kode / NIS',
     'Nama Santri',
     'Unit',
@@ -798,48 +837,83 @@ export function exportSantriToExcel(
     'Gedung Asrama',
     'Kamar',
     'Total Poin',
-    'Status Pembinaan',
+    'Riwayat Pelanggaran',
     'Keterangan'
   ];
 
-  const dataRows = santriList.map((s) => [
-    s.nis,
-    s.nama,
-    s.unit,
-    s.kelas,
-    s.musyrifNama || '-',
-    s.asrama || '-',
-    s.kamar || '-',
-    s.totalPoin,
-    s.statusPembinaan || 'Baik',
-    s.keterangan || '-'
-  ]);
+  const dataRows = santriList.map((s, index) => {
+    // Collect and format violation history for this santri
+    let riwayatText = 'Belum ada pelanggaran';
+    if (riwayatList && riwayatList.length > 0) {
+      const santriLogs = riwayatList.filter((r) => {
+        if (s.id && r.santriId && r.santriId === s.id) return true;
+        if (s.nama && r.santriNama && r.santriNama.trim().toLowerCase() === s.nama.trim().toLowerCase()) return true;
+        return false;
+      });
+
+      if (santriLogs.length > 0) {
+        // Sort newest to oldest
+        const sortedLogs = [...santriLogs].sort((a, b) => {
+          const timeA = new Date(a.tanggal).getTime() || 0;
+          const timeB = new Date(b.tanggal).getTime() || 0;
+          if (timeA !== timeB) return timeB - timeA;
+          return (b.id || '').localeCompare(a.id || '');
+        });
+
+        riwayatText = sortedLogs
+          .map((r) => {
+            const tgl = formatViolationDateForExcel(r.tanggal);
+            const jenis = r.jenisPelanggaranNama || 'Pelanggaran';
+            const poin = r.poin ?? 0;
+            const pelapor = (r.pencatat && r.pencatat.trim()) ? r.pencatat.trim() : 'Petugas';
+            return `${tgl} — ${jenis} — ${poin} poin — Pelapor: ${pelapor}`;
+          })
+          .join('\r\n');
+      }
+    }
+
+    return [
+      index + 1,
+      s.nis || '-',
+      s.nama || '-',
+      s.unit || '-',
+      s.kelas || '-',
+      s.musyrifNama || '-',
+      s.asrama || '-',
+      s.kamar || '-',
+      s.totalPoin ?? 0,
+      riwayatText,
+      s.keterangan || '-'
+    ];
+  });
 
   const wsData = [headers, ...dataRows];
   const ws = utils.aoa_to_sheet(wsData);
 
   ws['!cols'] = [
-    { wch: 16 },
-    { wch: 34 },
-    { wch: 8 },
-    { wch: 10 },
-    { wch: 28 },
-    { wch: 22 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 18 },
-    { wch: 26 }
+    { wch: 6 },   // No
+    { wch: 16 },  // Kode / NIS
+    { wch: 34 },  // Nama Santri
+    { wch: 8 },   // Unit
+    { wch: 10 },  // Kelas
+    { wch: 28 },  // Musyrif Pembina
+    { wch: 22 },  // Gedung Asrama
+    { wch: 12 },  // Kamar
+    { wch: 12 },  // Total Poin
+    { wch: 70 },  // Riwayat Pelanggaran
+    { wch: 26 }   // Keterangan
   ];
 
   const wb = utils.book_new();
-  utils.book_append_sheet(wb, ws, `Data Santri ${unitLabel}`);
+  const safeSheetName = sanitizeSheetName(`Santri ${unitLabel}`, 'Data Santri');
+  utils.book_append_sheet(wb, ws, safeSheetName);
 
   const wbout = write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const cleanLabel = unitLabel.replace(/[^a-zA-Z0-9]/g, '_');
+  const cleanLabel = (unitLabel || 'Semua').replace(/[^a-zA-Z0-9]/g, '_');
   a.download = `Data_Santri_${cleanLabel}_${new Date().toISOString().slice(0, 10)}.xlsx`;
   document.body.appendChild(a);
   a.click();

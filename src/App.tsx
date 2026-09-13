@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopNavigation } from './components/layout/TopNavigation';
 import { DashboardView } from './components/views/DashboardView';
@@ -19,7 +19,12 @@ import { ToastContainer } from './components/common/Toast';
 
 const AppContent: React.FC = () => {
   const { currentRoute, isAuthenticated, user } = useApp();
+  const { setAppAuthenticated } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setAppAuthenticated(Boolean(isAuthenticated && user));
+  }, [isAuthenticated, user, setAppAuthenticated]);
 
   // If not logged in, show the simple username/password Login screen
   if (!isAuthenticated || !user) {
@@ -55,7 +60,7 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#070E1A] text-slate-900 dark:text-slate-100 flex flex-col lg:flex-row antialiased transition-colors duration-200">
+    <div className="min-h-screen bg-[#F7F9FC] dark:bg-[#07101F] text-[#0F172A] dark:text-[#F8FAFC] flex flex-col lg:flex-row antialiased transition-colors duration-200">
       {/* Sidebar Navigation */}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 

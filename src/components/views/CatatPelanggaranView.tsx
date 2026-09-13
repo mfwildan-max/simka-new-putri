@@ -73,7 +73,7 @@ export const CatatPelanggaranView: React.FC = () => {
       p.konsekuensi.toLowerCase().includes(pelanggaranSearch.toLowerCase())
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!selectedSantri) {
@@ -87,7 +87,7 @@ export const CatatPelanggaranView: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    const success = catatPelanggaranBaru({
+    const success = await catatPelanggaranBaru({
       santriId: selectedSantri.id,
       pelanggaranId: selectedPelanggaran.id,
       catatan

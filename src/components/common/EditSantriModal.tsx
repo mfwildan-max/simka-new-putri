@@ -72,29 +72,39 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
 
   if (!isOpen || !santri) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nis.trim() || !formData.nama.trim() || !formData.kelas.trim()) {
       setFormError('NIS, Nama Santri, dan Kelas wajib diisi.');
       return;
     }
 
-    const res = updateSantri(santri.id, {
-      nis: formData.nis,
-      nama: formData.nama,
-      kelas: formData.kelas,
-      unit: formData.unit,
-      musyrifId: formData.musyrifId || undefined,
-      asrama: formData.asrama,
-      kamar: formData.kamar,
-      keterangan: formData.keterangan,
-      statusPembinaan: formData.statusPembinaan
-    });
+    setIsSaving(true);
+    setFormError(null);
+    try {
+      const res = await updateSantri(santri.id, {
+        nis: formData.nis,
+        nama: formData.nama,
+        kelas: formData.kelas,
+        unit: formData.unit,
+        musyrifId: formData.musyrifId || undefined,
+        asrama: formData.asrama,
+        kamar: formData.kamar,
+        keterangan: formData.keterangan,
+        statusPembinaan: formData.statusPembinaan
+      });
 
-    if (res.success) {
-      onClose();
-    } else {
-      setFormError(res.message || 'Gagal memperbarui data santri.');
+      if (res.success) {
+        onClose();
+      } else {
+        setFormError(res.message || 'Gagal memperbarui data santri.');
+      }
+    } catch (err: any) {
+      setFormError(err?.message || 'Terjadi kesalahan saat memperbarui data.');
+    } finally {
+      setIsSaving(false);
     }
   };
 

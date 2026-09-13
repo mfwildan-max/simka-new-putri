@@ -271,31 +271,40 @@ export const ImportSantriModal: React.FC<ImportSantriModalProps> = ({
     }
   };
 
-  const handleExecuteImport = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleExecuteImport = async () => {
     if (validRows.length === 0) {
       setErrorMessage('Tidak ada data valid yang dapat dimasukkan ke database.');
       return;
     }
 
-    const payload = validRows.map((r) => ({
-      nis: r.nis,
-      nama: r.nama,
-      kelas: r.kelas,
-      unit: (r.unit as UnitPesantren) || selectedImportUnit,
-      musyrifId: r.resolvedMusyrifId,
-      musyrifNama: r.resolvedMusyrifNama || r.musyrif,
-      asrama: r.asrama,
-      kamar: r.kamar,
-      statusPembinaan: (r.statusPembinaan as any) || 'Baik',
-      keterangan: r.keterangan
-    }));
+    setIsSubmitting(true);
+    try {
+      const payload = validRows.map((r) => ({
+        nis: r.nis,
+        nama: r.nama,
+        kelas: r.kelas,
+        unit: (r.unit as UnitPesantren) || selectedImportUnit,
+        musyrifId: r.resolvedMusyrifId,
+        musyrifNama: r.resolvedMusyrifNama || r.musyrif,
+        asrama: r.asrama,
+        kamar: r.kamar,
+        statusPembinaan: (r.statusPembinaan as any) || 'Baik',
+        keterangan: r.keterangan
+      }));
 
-    const res = importSantriBatch(payload);
-    if (res.success) {
-      handleResetModal();
-      onClose();
-    } else {
-      setErrorMessage(res.message);
+      const res = await importSantriBatch(payload);
+      if (res.success) {
+        handleResetModal();
+        onClose();
+      } else {
+        setErrorMessage(res.message);
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Terjadi kesalahan saat menyimpan ke database.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

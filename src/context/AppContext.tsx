@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   PageRoute, 
   Santri, 
@@ -21,16 +21,32 @@ import {
   initialPembinaanRecords
 } from '../data/mockData';
 import { 
-  fetchMasterPembinaanFromDB, 
-  findPembinaanBySinglePoin,
-  authenticateUser,
+  fetchSantriFromDB,
+  insertSantriToDB,
+  updateSantriInDB,
+  deleteSantriFromDB,
+  importSantriBatchToDB,
+  fetchPelanggaranFromDB,
+  insertPelanggaranToDB,
+  updatePelanggaranStatusInDB,
+  deletePelanggaranRecordFromDB,
   fetchMasterPelanggaranFromDB,
   insertMasterPelanggaranToDB,
   updateMasterPelanggaranInDB,
   deleteMasterPelanggaranFromDB,
   deleteAllMasterPelanggaranFromDB,
   importMasterPelanggaranBatchToDB,
-  deleteSantriFromDB
+  fetchMasterPembinaanFromDB, 
+  findPembinaanBySinglePoin,
+  fetchPembinaanRecordsFromDB,
+  fetchUsersFromDB,
+  insertUserToDB,
+  updateUserInDB,
+  deleteUserFromDB,
+  toggleUserActiveInDB,
+  resetUserPasswordInDB,
+  authenticateUser,
+  isSupabaseConfigured
 } from '../lib/supabase';
 import { 
   canRoleAccessRoute, 
@@ -81,15 +97,18 @@ interface AppContextType {
   // Auth & Session
   login: (username: string, password: string, rememberMe?: boolean) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
+  // Data Refresh
+  refreshData: () => Promise<void>;
+  isLoadingData: boolean;
   // Rekap Pelanggaran Record Management
-  deleteRiwayatPelanggaran: (id: string) => { success: boolean; message: string };
+  deleteRiwayatPelanggaran: (id: string) => Promise<{ success: boolean; message: string }>;
   // Master Pelanggaran Management (Kasie Superadmin)
   addPelanggaran: (data: {
     kode?: string;
     jenis: string;
     poin: number;
     konsekuensi: string;
-  }) => { success: boolean; message?: string };
+  }) => Promise<{ success: boolean; message?: string }>;
   updatePelanggaran: (
     id: string,
     data: {
@@ -98,7 +117,7 @@ interface AppContextType {
       poin: number;
       konsekuensi: string;
     }
-  ) => { success: boolean; message?: string };
+  ) => Promise<{ success: boolean; message?: string }>;
   deletePelanggaran: (id: string) => Promise<{ success: boolean; message?: string }>;
   deleteAllMasterPelanggaran: (onlyUnused?: boolean) => Promise<{
     success: boolean;
@@ -125,7 +144,7 @@ interface AppContextType {
       konsekuensi: string;
       kategori?: string;
     }>
-  ) => { success: boolean; insertedCount: number; message: string };
+  ) => Promise<{ success: boolean; insertedCount: number; message: string }>;
   // User Management (Kasie/Kabid Superadmin)
   addUser: (data: {
     id?: string;
@@ -160,8 +179,8 @@ interface AppContextType {
       unit: 'ALL' | UnitPesantren;
     }>
   ) => Promise<{ success: boolean; insertedCount: number; message: string }>;
-  deleteUser: (userId: string) => { success: boolean; message?: string };
-  toggleUserActive: (userId: string) => void;
+  deleteUser: (userId: string) => Promise<{ success: boolean; message?: string }>;
+  toggleUserActive: (userId: string) => Promise<void>;
   // Santri Management
   addSantri: (data: {
     nis: string;
@@ -172,7 +191,7 @@ interface AppContextType {
     asrama?: string;
     kamar?: string;
     keterangan?: string;
-  }) => { success: boolean; message?: string };
+  }) => Promise<{ success: boolean; message?: string }>;
   updateSantri: (
     id: string,
     data: {
@@ -186,7 +205,7 @@ interface AppContextType {
       keterangan?: string;
       statusPembinaan?: Santri['statusPembinaan'];
     }
-  ) => { success: boolean; message?: string };
+  ) => Promise<{ success: boolean; message?: string }>;
   deleteSantri: (
     id: string,
     options?: { deleteViolations?: boolean }
@@ -204,7 +223,7 @@ interface AppContextType {
       statusPembinaan?: Santri['statusPembinaan'];
       keterangan?: string;
     }>
-  ) => { success: boolean; insertedCount: number; message: string };
+  ) => Promise<{ success: boolean; insertedCount: number; message: string }>;
   // Pembinaan Management
   addPembinaan: (data: {
     santriId: string;
@@ -230,8 +249,8 @@ interface AppContextType {
     santriId: string;
     pelanggaranId: string;
     catatan?: string;
-  }) => boolean;
-  toggleStatusPelanggaran: (id: string) => void;
+  }) => Promise<boolean>;
+  toggleStatusPelanggaran: (id: string) => Promise<void>;
   updateUserPassword: (oldPass: string, newPass: string, confirmPass: string) => Promise<{ success: boolean; message: string }>;
   // Dynamic Scoped Dashboard Statistics
   stats: {
@@ -301,6 +320,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Unit filter for Superadmin (Kasie/Kabid)
   const [selectedKasieUnitFilter, setSelectedKasieUnitFilter] = useState<UnitFilter>('ALL');
 
+  // Loading state
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(true);
+
   // Users database
   const [usersList, setUsersList] = useState<UserAccount[]>(() => {
     try {
@@ -343,7 +365,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  // Santri & Riwayat Dataset
+  // Santri & Riwayat Dataset (Supabase Single Source of Truth)
   const [allSantriList, setAllSantriList] = useState<Santri[]>(() => {
     try {
       const saved = localStorage.getItem('simka_santri');
@@ -374,59 +396,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedSantriForDetail, setSelectedSantriForDetail] = useState<Santri | null>(null);
   const [toasts, setToasts] = useState<ToastInfo[]>([]);
 
-  // Sync users to storage
+  // Local caching for offline / fast startup
   useEffect(() => {
     localStorage.setItem('simka_users', JSON.stringify(usersList));
   }, [usersList]);
 
-  // Sync pelanggaran to storage
   useEffect(() => {
     localStorage.setItem('simka_master_pelanggaran', JSON.stringify(pelanggaranList));
   }, [pelanggaranList]);
 
-  // Sync santri to storage
   useEffect(() => {
     localStorage.setItem('simka_santri', JSON.stringify(allSantriList));
   }, [allSantriList]);
 
-  // Sync riwayat to storage
   useEffect(() => {
     localStorage.setItem('simka_riwayat', JSON.stringify(allRiwayatList));
   }, [allRiwayatList]);
 
-  // Sync pembinaan to storage
   useEffect(() => {
     localStorage.setItem('simka_pembinaan_records', JSON.stringify(allPembinaanList));
   }, [allPembinaanList]);
 
-  // Fetch Supabase master pembinaan & master pelanggaran on mount if available
-  useEffect(() => {
-    let isMounted = true;
-    fetchMasterPembinaanFromDB().then((data) => {
-      if (isMounted && data && data.length > 0) {
-        setMasterPembinaanList(data);
-        localStorage.setItem('simka_master_pembinaan', JSON.stringify(data));
-      }
-    });
+  // Central Supabase Fetch & Synchronization
+  const refreshData = useCallback(async () => {
+    setIsLoadingData(true);
+    try {
+      const [
+        dbSantri,
+        dbPelanggaran,
+        dbMasterPelanggaran,
+        dbMasterPembinaan,
+        dbUsers,
+        dbPembinaan
+      ] = await Promise.all([
+        fetchSantriFromDB(),
+        fetchPelanggaranFromDB(),
+        fetchMasterPelanggaranFromDB(),
+        fetchMasterPembinaanFromDB(),
+        fetchUsersFromDB(),
+        fetchPembinaanRecordsFromDB()
+      ]);
 
-    fetchMasterPelanggaranFromDB().then((data) => {
-      if (isMounted && data && data.length > 0) {
-        setPelanggaranList(data);
-        localStorage.setItem('simka_master_pelanggaran', JSON.stringify(data));
+      if (dbSantri && dbSantri.length > 0) {
+        setAllSantriList(dbSantri);
+        localStorage.setItem('simka_santri', JSON.stringify(dbSantri));
       }
-    });
 
-    return () => {
-      isMounted = false;
-    };
+      if (dbPelanggaran) {
+        setAllRiwayatList(dbPelanggaran);
+        localStorage.setItem('simka_riwayat', JSON.stringify(dbPelanggaran));
+      }
+
+      if (dbMasterPelanggaran && dbMasterPelanggaran.length > 0) {
+        setPelanggaranList(dbMasterPelanggaran);
+        localStorage.setItem('simka_master_pelanggaran', JSON.stringify(dbMasterPelanggaran));
+      }
+
+      if (dbMasterPembinaan && dbMasterPembinaan.length > 0) {
+        setMasterPembinaanList(dbMasterPembinaan);
+        localStorage.setItem('simka_master_pembinaan', JSON.stringify(dbMasterPembinaan));
+      }
+
+      if (dbUsers && dbUsers.length > 0) {
+        setUsersList(dbUsers);
+        localStorage.setItem('simka_users', JSON.stringify(dbUsers));
+      }
+
+      if (dbPembinaan && dbPembinaan.length > 0) {
+        setAllPembinaanList(dbPembinaan);
+        localStorage.setItem('simka_pembinaan_records', JSON.stringify(dbPembinaan));
+      }
+    } catch (err) {
+      console.warn('Supabase data synchronization note:', err);
+    } finally {
+      setIsLoadingData(false);
+    }
   }, []);
 
+  // Fetch Supabase data on mount and whenever user logs in
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+
   // --------------------------------------------------------------------------
-  // DATA ISOLATION LOGIC (CRITICAL MANDATE)
+  // DATA ISOLATION LOGIC
   // --------------------------------------------------------------------------
-  // User Unit isolation:
-  // - MUSYRIF / KOORDINATOR: strictly locked to user.unit (SMP only sees SMP, MA only sees MA, SMA only sees SMA)
-  // - KASIE / KABID: global access with dynamic unit filter selector (ALL / SMP / MA / SMA)
   const activeUnitScope = useMemo((): UnitFilter => {
     if (!user) return 'ALL';
     if (user.role === 'KASIE_KEPESANTRENAN') {
@@ -442,7 +496,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (selectedKasieUnitFilter === 'ALL') return allSantriList;
       return allSantriList.filter((s) => s.unit === selectedKasieUnitFilter);
     }
-    // Strict isolation for Musyrif & Koordinator
     return allSantriList.filter((s) => s.unit === user.unit);
   }, [user, selectedKasieUnitFilter, allSantriList]);
 
@@ -453,7 +506,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (selectedKasieUnitFilter === 'ALL') return allRiwayatList;
       return allRiwayatList.filter((r) => r.santriUnit === selectedKasieUnitFilter);
     }
-    // Strict isolation for Musyrif & Koordinator
     return allRiwayatList.filter((r) => r.santriUnit === user.unit);
   }, [user, selectedKasieUnitFilter, allRiwayatList]);
 
@@ -505,6 +557,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         `Selamat datang, ${result.user.nama} (${getRoleDisplayName(result.user.role)} - ${getUnitDisplayName(result.user.unit)}).`,
         'success'
       );
+      // Immediately refresh live data from Supabase upon login
+      refreshData();
       return { success: true };
     }
     return { success: false, message: result.message || 'Kombinasi username atau password salah.' };
@@ -519,14 +573,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // --------------------------------------------------------------------------
-  // MASTER PELANGGARAN MANAGEMENT (KASIE / KABID SUPERADMIN ONLY)
+  // MASTER PELANGGARAN MANAGEMENT (KASIE SUPERADMIN ONLY)
   // --------------------------------------------------------------------------
-  const addPelanggaran = (data: {
+  const addPelanggaran = async (data: {
     kode?: string;
     jenis: string;
     poin: number;
     konsekuensi: string;
-  }): { success: boolean; message?: string } => {
+  }): Promise<{ success: boolean; message?: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
       return { success: false, message: 'Hanya Kasie Kepesantrenan yang berwenang menambah Master Pelanggaran.' };
     }
@@ -541,7 +595,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Poin pelanggaran harus berupa angka positif!' };
     }
 
-    // Check duplicate
     const isDuplicate = pelanggaranList.some(
       (p) => p.jenis.trim().toLowerCase() === cleanJenis.toLowerCase()
     );
@@ -551,8 +604,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const calculatedKategori = getKategoriFromPoin(cleanPoin).kategori;
     const nextKode = data.kode?.trim() || `P${String(pelanggaranList.length + 1).padStart(3, '0')}`;
-    const newPelanggaran: Pelanggaran = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `p-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+
+    const res = await insertMasterPelanggaranToDB(
+      {
+        kode: nextKode,
+        jenis: cleanJenis,
+        poin: cleanPoin,
+        kategori: calculatedKategori,
+        konsekuensi: data.konsekuensi?.trim() || '-'
+      },
+      user.role
+    );
+
+    if (!res.success) {
+      return { success: false, message: res.error || 'Gagal menyimpan master pelanggaran ke database.' };
+    }
+
+    const newPelanggaran = res.data || {
+      id: `p-${Date.now()}`,
       kode: nextKode,
       jenis: cleanJenis,
       poin: cleanPoin,
@@ -560,28 +629,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       konsekuensi: data.konsekuensi?.trim() || '-'
     };
 
-    // Optimistically update state
     setPelanggaranList((prev) => [newPelanggaran, ...prev]);
-
-    // Async sync to Supabase
-    insertMasterPelanggaranToDB(
-      {
-        kode: newPelanggaran.kode,
-        jenis: newPelanggaran.jenis,
-        poin: newPelanggaran.poin,
-        kategori: newPelanggaran.kategori,
-        konsekuensi: newPelanggaran.konsekuensi
-      },
-      user.role
-    ).then((res) => {
-      if (res.success && res.data) {
-        // Update item with the real Supabase generated database UUID
-        setPelanggaranList((prev) =>
-          prev.map((p) => (p.id === newPelanggaran.id ? res.data! : p))
-        );
-      }
-    });
-
     showToast(
       'Pelanggaran Ditambahkan',
       `Item "${newPelanggaran.jenis}" (${newPelanggaran.poin} Poin - ${newPelanggaran.kategori}) berhasil ditambahkan.`,
@@ -590,7 +638,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
-  const updatePelanggaran = (
+  const updatePelanggaran = async (
     id: string,
     data: {
       kode?: string;
@@ -598,156 +646,144 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       poin: number;
       konsekuensi: string;
     }
-  ): { success: boolean; message?: string } => {
+  ): Promise<{ success: boolean; message?: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
       return { success: false, message: 'Hanya Kasie Kepesantrenan yang berwenang mengubah Master Pelanggaran.' };
     }
 
-    const existing = pelanggaranList.find((p) => p.id === id);
-    if (!existing) {
-      return { success: false, message: 'Item Pelanggaran tidak ditemukan.' };
+    const cleanJenis = data.jenis.trim();
+    if (!cleanJenis) {
+      return { success: false, message: 'Item Pelanggaran wajib diisi!' };
     }
 
-    const cleanJenis = data.jenis.trim();
     const cleanPoin = Number(data.poin);
-    if (!cleanJenis || isNaN(cleanPoin) || cleanPoin < 1) {
-      return { success: false, message: 'Item Pelanggaran dan Poin (angka > 0) wajib diisi!' };
+    if (isNaN(cleanPoin) || cleanPoin < 1) {
+      return { success: false, message: 'Poin pelanggaran harus berupa angka positif!' };
     }
 
     const calculatedKategori = getKategoriFromPoin(cleanPoin).kategori;
-    const updatedRecord: Pelanggaran = {
-      ...existing,
-      kode: data.kode?.trim() || existing.kode,
-      jenis: cleanJenis,
-      poin: cleanPoin,
-      kategori: calculatedKategori,
-      konsekuensi: data.konsekuensi !== undefined ? data.konsekuensi.trim() : existing.konsekuensi
-    };
 
-    // Update state locally
-    setPelanggaranList((prev) => prev.map((p) => (p.id === id ? updatedRecord : p)));
-
-    // Sync update to Supabase using the database UUID
-    updateMasterPelanggaranInDB(
+    const res = await updateMasterPelanggaranInDB(
       id,
       {
-        kode: updatedRecord.kode,
-        jenis: updatedRecord.jenis,
-        poin: updatedRecord.poin,
-        kategori: updatedRecord.kategori,
-        konsekuensi: updatedRecord.konsekuensi
+        kode: data.kode,
+        jenis: cleanJenis,
+        poin: cleanPoin,
+        kategori: calculatedKategori,
+        konsekuensi: data.konsekuensi?.trim() || '-'
       },
       user.role
+    );
+
+    if (!res.success) {
+      return { success: false, message: res.error || 'Gagal memperbarui master pelanggaran di database.' };
+    }
+
+    setPelanggaranList((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          return {
+            ...p,
+            kode: data.kode || p.kode,
+            jenis: cleanJenis,
+            poin: cleanPoin,
+            kategori: calculatedKategori,
+            konsekuensi: data.konsekuensi?.trim() || '-'
+          };
+        }
+        return p;
+      })
     );
 
     showToast('Pelanggaran Diperbarui', `Item "${cleanJenis}" berhasil diperbarui.`, 'success');
     return { success: true };
   };
 
-  /**
-   * Check if master pelanggaran is currently referenced by any student violation history
-   */
   const checkMasterPelanggaranUsage = (masterId?: string) => {
-    if (masterId) {
-      const target = pelanggaranList.find((p) => p.id === masterId);
-      const usageCount = allRiwayatList.filter((r) => {
-        return (
-          r.jenisPelanggaranId === masterId ||
-          (target && r.jenisPelanggaranNama.toLowerCase() === target.jenis.toLowerCase())
-        );
-      }).length;
+    const totalTransactionsCount = allRiwayatList.length;
+    const totalMasterCount = pelanggaranList.length;
 
+    if (masterId) {
+      const targetMaster = pelanggaranList.find((p) => p.id === masterId);
+      const usedInLogs = allRiwayatList.filter((r) => {
+        if (r.jenisPelanggaranId && r.jenisPelanggaranId === masterId) return true;
+        if (targetMaster && r.jenisPelanggaranNama && r.jenisPelanggaranNama.toLowerCase() === targetMaster.jenis.toLowerCase()) return true;
+        return false;
+      });
+      const count = usedInLogs.length;
       return {
-        isUsed: usageCount > 0,
-        count: usageCount,
-        totalMasterCount: pelanggaranList.length,
-        usedCount: usageCount > 0 ? 1 : 0,
-        unusedCount: usageCount > 0 ? 0 : 1,
-        totalTransactionsCount: allRiwayatList.length,
-        affectedTransactionsCount: usageCount,
-        usedIds: usageCount > 0 ? [masterId] : [],
-        unusedIds: usageCount === 0 ? [masterId] : []
+        isUsed: count > 0,
+        count,
+        totalMasterCount,
+        usedCount: count > 0 ? 1 : 0,
+        unusedCount: count > 0 ? 0 : 1,
+        totalTransactionsCount,
+        affectedTransactionsCount: count,
+        usedIds: count > 0 ? [masterId] : [],
+        unusedIds: count === 0 ? [masterId] : []
       };
     }
 
-    // Global check across all master items
     const usedIdsSet = new Set<string>();
-    let totalMatchedTransactions = 0;
+    let affectedTxCount = 0;
 
-    for (const r of allRiwayatList) {
-      const matched = pelanggaranList.find(
-        (p) => p.id === r.jenisPelanggaranId || p.jenis.toLowerCase() === r.jenisPelanggaranNama.toLowerCase()
-      );
-      if (matched) {
-        usedIdsSet.add(matched.id);
-        totalMatchedTransactions++;
+    for (const master of pelanggaranList) {
+      const matchingLogs = allRiwayatList.filter((r) => {
+        if (r.jenisPelanggaranId && r.jenisPelanggaranId === master.id) return true;
+        if (r.jenisPelanggaranNama && r.jenisPelanggaranNama.toLowerCase() === master.jenis.toLowerCase()) return true;
+        return false;
+      });
+
+      if (matchingLogs.length > 0) {
+        usedIdsSet.add(master.id);
+        affectedTxCount += matchingLogs.length;
       }
     }
 
     const usedIds = Array.from(usedIdsSet);
-    const unusedIds = pelanggaranList.filter((p) => !usedIdsSet.has(p.id)).map((p) => p.id);
+    const unusedIds = pelanggaranList.map((p) => p.id).filter((id) => !usedIdsSet.has(id));
 
     return {
       isUsed: usedIds.length > 0,
-      count: totalMatchedTransactions,
-      totalMasterCount: pelanggaranList.length,
+      count: usedIds.length,
+      totalMasterCount,
       usedCount: usedIds.length,
       unusedCount: unusedIds.length,
-      totalTransactionsCount: allRiwayatList.length,
-      affectedTransactionsCount: totalMatchedTransactions,
+      totalTransactionsCount,
+      affectedTransactionsCount: affectedTxCount,
       usedIds,
       unusedIds
     };
   };
 
-  /**
-   * Individual delete for master pelanggaran record with Supabase persistence and reference protection.
-   * Strictly uses the record's database UUID for deletion queries.
-   */
   const deletePelanggaran = async (id: string): Promise<{ success: boolean; message?: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
-      return { success: false, message: 'Hanya Kasie Kepesantrenan yang berwenang menghapus Master Pelanggaran.' };
+      return { success: false, message: 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang menghapus data.' };
     }
 
     const existing = pelanggaranList.find((p) => p.id === id);
     if (!existing) {
-      return { success: false, message: 'Item Pelanggaran tidak ditemukan.' };
+      return { success: false, message: 'Item pelanggaran tidak ditemukan.' };
     }
 
-    // Debug logging
-    console.log('[DELETE MASTER]', {
-      databaseId: existing.id,
-      kode: existing.kode,
-      nama: existing.jenis
-    });
-
-    // Check if referenced in transactions
     const usage = checkMasterPelanggaranUsage(id);
     if (usage.isUsed) {
       return {
         success: false,
-        message: `Item "${existing.jenis}" tidak dapat dihapus karena tercatat dalam ${usage.count} riwayat pelanggaran santri.`
+        message: `Tidak dapat menghapus item ini karena sedang digunakan oleh ${usage.count} catatan pelanggaran santri.`
       };
     }
 
-    // Perform database deletion from Supabase using real database UUID
-    const dbResult = await deleteMasterPelanggaranFromDB(existing, user.role);
-    if (!dbResult.success) {
-      return { success: false, message: dbResult.error || 'Gagal menghapus data dari Supabase.' };
+    const res = await deleteMasterPelanggaranFromDB(id, user.role);
+    if (!res.success) {
+      return { success: false, message: res.error || 'Gagal menghapus dari database.' };
     }
 
-    // Update local state and storage
-    const updated = pelanggaranList.filter((p) => p.id !== id);
-    setPelanggaranList(updated);
-    localStorage.setItem('simka_master_pelanggaran', JSON.stringify(updated));
-
-    showToast('Data Pelanggaran Dihapus', `Data pelanggaran "${existing.jenis}" berhasil dihapus.`, 'success');
-    return { success: true, message: 'Data pelanggaran berhasil dihapus.' };
+    setPelanggaranList((prev) => prev.filter((p) => p.id !== id));
+    showToast('Pelanggaran Dihapus', `Item "${existing.jenis}" berhasil dihapus dari sistem.`, 'info');
+    return { success: true };
   };
 
-  /**
-   * Bulk deletion / Reset master pelanggaran with multi-layer confirmation and safe transaction protection
-   */
   const deleteAllMasterPelanggaran = async (
     onlyUnused = false
   ): Promise<{
@@ -805,8 +841,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const recordsToDelete = pelanggaranList.filter((p) => idsToDelete.includes(p.id));
-
-    // Call Supabase batch deletion with record objects
     const dbResult = await deleteAllMasterPelanggaranFromDB(recordsToDelete, user.role);
     if (!dbResult.success) {
       return {
@@ -817,10 +851,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // Update state and persistence
     const updated = pelanggaranList.filter((p) => !idsToDelete.includes(p.id));
     setPelanggaranList(updated);
-    localStorage.setItem('simka_master_pelanggaran', JSON.stringify(updated));
 
     const isTotalReset = updated.length === 0;
     const msg = isTotalReset
@@ -828,7 +860,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       : `${idsToDelete.length} master pelanggaran yang tidak digunakan berhasil dihapus. ${updated.length} master tetap disimpan.`;
 
     showToast('Master Pelanggaran Dihapus', msg, 'success');
-
     return {
       success: true,
       deletedCount: idsToDelete.length,
@@ -837,7 +868,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  const importPelanggaranBatch = (
+  const importPelanggaranBatch = async (
     items: Array<{
       kode?: string;
       jenis: string;
@@ -845,7 +876,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       konsekuensi: string;
       kategori?: string;
     }>
-  ): { success: boolean; insertedCount: number; message: string } => {
+  ): Promise<{ success: boolean; insertedCount: number; message: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
       return { success: false, insertedCount: 0, message: 'Hanya Kasie Kepesantrenan yang berwenang melakukan import Master Pelanggaran.' };
     }
@@ -890,31 +921,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, insertedCount: 0, message: 'Semua item pelanggaran dalam file sudah ada di database.' };
     }
 
-    // Sync to Supabase in batch and obtain real database UUIDs
-    importMasterPelanggaranBatchToDB(validNewItems, user.role).then((dbRes) => {
-      if (dbRes.success && dbRes.insertedData && dbRes.insertedData.length > 0) {
-        setPelanggaranList((prev) => {
-          // Replace or merge with the database UUID version
-          const nonImported = prev.filter((p) => !validNewItems.some((v) => v.jenis.toLowerCase() === p.jenis.toLowerCase()));
-          return [...nonImported, ...dbRes.insertedData!];
-        });
-      }
-    });
+    const dbRes = await importMasterPelanggaranBatchToDB(validNewItems, user.role);
+    if (!dbRes.success) {
+      return { success: false, insertedCount: 0, message: dbRes.error || 'Gagal mengimpor ke database.' };
+    }
 
-    // Optimistic entries for instantaneous UI response
-    const optimisticEntries: Pelanggaran[] = validNewItems.map((v, idx) => ({
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `temp-${Date.now()}-${idx}`,
-      kode: v.kode || `P${String(pelanggaranList.length + idx + 1).padStart(3, '0')}`,
-      jenis: v.jenis,
-      poin: v.poin,
-      kategori: v.kategori,
-      konsekuensi: v.konsekuensi
-    }));
+    if (dbRes.insertedData && dbRes.insertedData.length > 0) {
+      setPelanggaranList((prev) => [...dbRes.insertedData!, ...prev]);
+    }
 
-    setPelanggaranList((prev) => [...prev, ...optimisticEntries]);
     showToast(
       'Import Pelanggaran Berhasil',
-      `Sebanyak ${validNewItems.length} item pelanggaran baru berhasil ditambahkan ke master database.`,
+      `Sebanyak ${validNewItems.length} item pelanggaran baru berhasil ditambahkan ke database Supabase.`,
       'success'
     );
     return {
@@ -925,7 +943,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // --------------------------------------------------------------------------
-  // USER MANAGEMENT (KASIE / KABID ONLY)
+  // USER MANAGEMENT (KASIE SUPERADMIN ONLY)
   // --------------------------------------------------------------------------
   const addUser = async (data: {
     id?: string;
@@ -938,7 +956,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     title?: string;
   }): Promise<{ success: boolean; message?: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
-      return { success: false, message: 'Hanya Kasie Kepesantrenan / Superadmin yang berwenang menambah user.' };
+      return { success: false, message: 'Hanya Kasie Kepesantrenan yang berwenang menambah user.' };
     }
 
     const cleanUsername = data.username.trim().toLowerCase();
@@ -946,31 +964,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Nama, username, dan password wajib diisi!' };
     }
 
-    // Check existing username
     const exists = usersList.some((u) => u.username.toLowerCase() === cleanUsername);
     if (exists) {
-      return { success: false, message: `Username "${cleanUsername}" sudah digunakan oleh user lain.` };
+      return { success: false, message: `Username "@${cleanUsername}" sudah digunakan.` };
     }
 
     const password_hash = await hashPassword(data.password);
-    const assignedId = data.id?.trim() || `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    const assignedUnit = data.role === 'KASIE_KEPESANTRENAN' ? 'ALL' : data.unit;
+    const assignedUnit = data.role === 'KASIE_KEPESANTRENAN' ? 'ALL' : (data.unit || 'SMP');
 
-    const newUser: UserAccount = {
-      id: assignedId,
-      nama: data.nama.trim(),
-      username: cleanUsername,
-      role: data.role,
-      unit: assignedUnit,
-      is_active: true,
-      email: data.email?.trim() || `${cleanUsername}@simka.id`,
-      title: data.title?.trim() || `${data.role} ${assignedUnit}`,
-      password_hash,
-      created_at: new Date().toISOString()
-    };
+    const res = await insertUserToDB(
+      {
+        nama: data.nama.trim(),
+        username: cleanUsername,
+        password_hash,
+        role: data.role,
+        unit: assignedUnit,
+        is_active: true,
+        email: data.email?.trim() || `${cleanUsername}@simka.id`,
+        title: data.title?.trim() || `${data.role} ${assignedUnit}`
+      },
+      user.role
+    );
 
-    setUsersList((prev) => [newUser, ...prev]);
-    showToast('User Ditambahkan!', `Pengguna ${newUser.nama} (@${newUser.username}) siap login langsung.`, 'success');
+    if (!res.success || !res.data) {
+      return { success: false, message: res.error || 'Gagal menyimpan user ke database.' };
+    }
+
+    setUsersList((prev) => [res.data!, ...prev]);
+    showToast('Pengguna Ditambahkan', `Akun @${cleanUsername} (${res.data.nama}) berhasil dibuat.`, 'success');
     return { success: true };
   };
 
@@ -986,7 +1007,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ): Promise<{ success: boolean; message?: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
-      return { success: false, message: 'Hanya Kasie Kepesantrenan yang berwenang mengubah profil user.' };
+      return { success: false, message: 'Hanya Kasie Kepesantrenan yang berwenang mengedit pengguna.' };
     }
 
     const existing = usersList.find((u) => u.id === id);
@@ -995,17 +1016,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const cleanUsername = data.username.trim().toLowerCase();
-    if (!cleanUsername || !data.nama.trim()) {
-      return { success: false, message: 'Nama dan username wajib diisi!' };
-    }
-
-    // Check username conflict with others
-    const usernameTaken = usersList.some((u) => u.id !== id && u.username.toLowerCase() === cleanUsername);
-    if (usernameTaken) {
-      return { success: false, message: `Username "@${cleanUsername}" sudah digunakan pengguna lain.` };
+    const duplicate = usersList.some(
+      (u) => u.id !== id && u.username.toLowerCase() === cleanUsername
+    );
+    if (duplicate) {
+      return { success: false, message: `Username "@${cleanUsername}" sudah dipakai oleh pengguna lain.` };
     }
 
     const assignedUnit = data.role === 'KASIE_KEPESANTRENAN' ? 'ALL' : data.unit;
+
+    const res = await updateUserInDB(
+      id,
+      {
+        nama: data.nama.trim(),
+        username: cleanUsername,
+        role: data.role,
+        unit: assignedUnit,
+        is_active: data.is_active !== undefined ? data.is_active : existing.is_active,
+        email: data.email?.trim(),
+        title: `${data.role} ${assignedUnit}`
+      },
+      user.role
+    );
+
+    if (!res.success) {
+      return { success: false, message: res.error || 'Gagal memperbarui user di database.' };
+    }
 
     setUsersList((prev) =>
       prev.map((u) => {
@@ -1014,7 +1050,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...u,
             nama: data.nama.trim(),
             username: cleanUsername,
-            email: data.email?.trim() || `${cleanUsername}@simka.id`,
+            email: data.email?.trim() || u.email,
             role: data.role,
             unit: assignedUnit,
             is_active: data.is_active !== undefined ? data.is_active : u.is_active,
@@ -1025,20 +1061,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    showToast('Profil User Diperbarui', `Data akun ${data.nama} berhasil disimpan.`, 'success');
+    showToast('Pengguna Diperbarui', `Data akun @${cleanUsername} berhasil disimpan.`, 'success');
     return { success: true };
   };
 
-  const resetUserPassword = async (
-    userId: string,
-    newPassword: string
-  ): Promise<{ success: boolean; message?: string }> => {
+  const resetUserPassword = async (userId: string, newPassword: string): Promise<{ success: boolean; message?: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
-      return { success: false, message: 'Hanya Kasie Kepesantrenan yang berwenang mereset password.' };
+      return { success: false, message: 'Hanya Kasie Kepesantrenan yang berwenang mereset kata sandi.' };
     }
-
     if (!newPassword || newPassword.length < 6) {
-      return { success: false, message: 'Password baru minimal 6 karakter!' };
+      return { success: false, message: 'Kata sandi baru minimal 6 karakter!' };
     }
 
     const existing = usersList.find((u) => u.id === userId);
@@ -1047,20 +1079,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const newHash = await hashPassword(newPassword);
+    const res = await resetUserPasswordInDB(userId, newHash, user.role);
+
+    if (!res.success) {
+      return { success: false, message: res.error || 'Gagal mereset kata sandi di database.' };
+    }
 
     setUsersList((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          return {
-            ...u,
-            password_hash: newHash
-          };
-        }
-        return u;
-      })
+      prev.map((u) => (u.id === userId ? { ...u, password_hash: newHash } : u))
     );
 
-    showToast('Password Berhasil Direset', `Password baru untuk @${existing.username} telah tersimpan aman.`, 'success');
+    showToast('Password Direset', `Kata sandi akun @${existing.username} berhasil direset.`, 'success');
     return { success: true };
   };
 
@@ -1076,59 +1105,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }>
   ): Promise<{ success: boolean; insertedCount: number; message: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
-      return { success: false, insertedCount: 0, message: 'Hanya Kasie Kepesantrenan yang berwenang mengimport data pengguna.' };
+      return { success: false, insertedCount: 0, message: 'Hanya Kasie Kepesantrenan yang berwenang mengimpor akun pengguna.' };
     }
 
     if (usersData.length === 0) {
-      return { success: false, insertedCount: 0, message: 'Tidak ada data pengguna valid yang dapat diimport.' };
+      return { success: false, insertedCount: 0, message: 'Tidak ada data valid yang dapat diimport.' };
     }
 
-    const existingUsernameSet = new Set(usersList.map((u) => u.username.toLowerCase().trim()));
-    const newAccounts: UserAccount[] = [];
-
+    let count = 0;
     for (const item of usersData) {
-      const cleanUsername = item.username.toLowerCase().trim();
-      if (!cleanUsername || existingUsernameSet.has(cleanUsername)) {
-        continue;
-      }
-      existingUsernameSet.add(cleanUsername);
+      const cleanUsername = item.username.trim().toLowerCase();
+      if (!cleanUsername || !item.password || !item.nama) continue;
+      const exists = usersList.some((u) => u.username.toLowerCase() === cleanUsername);
+      if (exists) continue;
 
-      const password_hash = await hashPassword(item.password || 'simka123');
+      const password_hash = await hashPassword(item.password);
       const assignedUnit = item.role === 'KASIE_KEPESANTRENAN' ? 'ALL' : item.unit;
-      const assignedId = item.id?.trim() || `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
-      newAccounts.push({
-        id: assignedId,
-        nama: item.nama.trim(),
-        username: cleanUsername,
-        role: item.role,
-        unit: assignedUnit,
-        is_active: true,
-        email: item.email?.trim() || `${cleanUsername}@simka.id`,
-        title: `${item.role} ${assignedUnit}`,
-        password_hash,
-        created_at: new Date().toISOString()
-      });
+      const res = await insertUserToDB(
+        {
+          nama: item.nama.trim(),
+          username: cleanUsername,
+          password_hash,
+          role: item.role,
+          unit: assignedUnit,
+          is_active: true,
+          email: item.email?.trim() || `${cleanUsername}@simka.id`,
+          title: `${item.role} ${assignedUnit}`
+        },
+        user.role
+      );
+
+      if (res.success && res.data) {
+        setUsersList((prev) => [res.data!, ...prev]);
+        count++;
+      }
     }
 
-    if (newAccounts.length === 0) {
-      return { success: false, insertedCount: 0, message: 'Semua akun pengguna di file sudah terdaftar (duplikat username).' };
-    }
-
-    setUsersList((prev) => [...newAccounts, ...prev]);
     showToast(
       'Import Pengguna Berhasil',
-      `Sebanyak ${newAccounts.length} akun pengguna baru berhasil ditambahkan dan dapat login langsung.`,
+      `Sebanyak ${count} akun pengguna baru berhasil ditambahkan ke database.`,
       'success'
     );
     return {
       success: true,
-      insertedCount: newAccounts.length,
-      message: `${newAccounts.length} pengguna berhasil diimport.`
+      insertedCount: count,
+      message: `${count} pengguna berhasil diimport.`
     };
   };
 
-  const deleteUser = (userId: string): { success: boolean; message?: string } => {
+  const deleteUser = async (userId: string): Promise<{ success: boolean; message?: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
       return { success: false, message: 'Hanya Kasie Kepesantrenan yang berwenang menghapus pengguna.' };
     }
@@ -1141,12 +1167,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Pengguna tidak ditemukan.' };
     }
 
+    const res = await deleteUserFromDB(userId, user.role);
+    if (!res.success) {
+      return { success: false, message: res.error || 'Gagal menghapus pengguna dari database.' };
+    }
+
     setUsersList((prev) => prev.filter((u) => u.id !== userId));
     showToast('Pengguna Dihapus', `Akun @${existing.username} (${existing.nama}) telah dihapus.`, 'info');
     return { success: true };
   };
 
-  const toggleUserActive = (userId: string) => {
+  const toggleUserActive = async (userId: string) => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
       showToast('Akses Ditolak', 'Hanya Kasie Kepesantrenan yang dapat mengubah status user.', 'error');
       return;
@@ -1156,22 +1187,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    const existing = usersList.find((u) => u.id === userId);
+    if (!existing) return;
+
+    const newStatus = !existing.is_active;
+    const res = await toggleUserActiveInDB(userId, newStatus, user.role);
+    if (!res.success) {
+      showToast('Gagal Mengubah Status', res.error || 'Terjadi kesalahan sistem.', 'error');
+      return;
+    }
+
     setUsersList((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          const updatedStatus = !u.is_active;
-          showToast('Status Pengguna Diperbarui', `Akun ${u.nama} ${updatedStatus ? 'diaktifkan' : 'dinonaktifkan'}.`, 'info');
-          return { ...u, is_active: updatedStatus };
-        }
-        return u;
-      })
+      prev.map((u) => (u.id === userId ? { ...u, is_active: newStatus } : u))
     );
+    showToast('Status Pengguna Diperbarui', `Akun ${existing.nama} ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}.`, 'info');
   };
 
   // --------------------------------------------------------------------------
-  // SANTRI MANAGEMENT
+  // SANTRI MANAGEMENT (SUPABASE SINGLE SOURCE OF TRUTH)
   // --------------------------------------------------------------------------
-  const addSantri = (data: {
+  const addSantri = async (data: {
     nis: string;
     nama: string;
     kelas: string;
@@ -1180,12 +1215,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     asrama?: string;
     kamar?: string;
     keterangan?: string;
-  }): { success: boolean; message?: string } => {
+  }): Promise<{ success: boolean; message?: string }> => {
     if (!user) {
       return { success: false, message: 'Silakan login terlebih dahulu.' };
     }
 
-    // Role check: Musyrif & Koordinator can only add santri to their OWN unit
     if (user.role !== 'KASIE_KEPESANTRENAN' && user.unit !== data.unit) {
       return { success: false, message: `Akses Ditolak: Anda (${user.unit}) tidak diizinkan menambah santri Unit ${data.unit}!` };
     }
@@ -1194,21 +1228,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'NIS, Nama, Kelas, dan Unit wajib diisi!' };
     }
 
-    // Lookup Musyrif Name
     let musyrifNama: string | undefined;
     if (data.musyrifId) {
       const musy = usersList.find((u) => u.id === data.musyrifId);
       musyrifNama = musy ? musy.nama : undefined;
     }
 
-    const newSantri: Santri = {
+    const dbRes = await insertSantriToDB(
+      {
+        ...data,
+        musyrifNama
+      },
+      user.role,
+      user.unit
+    );
+
+    if (!dbRes.success) {
+      return { success: false, message: dbRes.error || 'Gagal menyimpan data santri ke database.' };
+    }
+
+    const newSantri = dbRes.data || {
       id: `s-${data.unit.toLowerCase()}-${Date.now()}`,
       nis: data.nis.trim(),
       nama: data.nama.trim().toUpperCase(),
       kelas: data.kelas.trim(),
       unit: data.unit,
       totalPoin: 0,
-      statusPembinaan: 'Baik',
+      statusPembinaan: 'Baik' as Santri['statusPembinaan'],
       musyrifId: data.musyrifId,
       musyrifNama,
       asrama: data.asrama?.trim() || `Asrama ${data.unit}`,
@@ -1217,11 +1263,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setAllSantriList((prev) => [newSantri, ...prev]);
-    showToast('Santri Berhasil Ditambahkan', `Santri ${newSantri.nama} (${newSantri.unit}) telah terdaftar.`, 'success');
+    showToast('Santri Berhasil Ditambahkan', `Santri ${newSantri.nama} (${newSantri.unit}) telah terdaftar di database.`, 'success');
     return { success: true };
   };
 
-  const updateSantri = (
+  const updateSantri = async (
     id: string,
     data: {
       nis: string;
@@ -1234,7 +1280,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       keterangan?: string;
       statusPembinaan?: Santri['statusPembinaan'];
     }
-  ): { success: boolean; message?: string } => {
+  ): Promise<{ success: boolean; message?: string }> => {
     if (!user) {
       return { success: false, message: 'Silakan login terlebih dahulu.' };
     }
@@ -1244,12 +1290,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Data santri tidak ditemukan.' };
     }
 
-    // Role check: Musyrif & Koordinator can only edit their own unit
     if (user.role !== 'KASIE_KEPESANTRENAN' && user.unit !== existing.unit) {
       return { success: false, message: `Akses Ditolak: Anda (${user.unit}) tidak diizinkan mengubah santri Unit ${existing.unit}!` };
     }
 
-    // Lookup Musyrif Name
     let musyrifNama = existing.musyrifNama;
     if (data.musyrifId !== undefined) {
       if (data.musyrifId) {
@@ -1258,6 +1302,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         musyrifNama = undefined;
       }
+    }
+
+    const dbRes = await updateSantriInDB(
+      id,
+      {
+        ...data,
+        musyrifNama
+      },
+      user.role,
+      user.unit
+    );
+
+    if (!dbRes.success) {
+      return { success: false, message: dbRes.error || 'Gagal memperbarui santri di database.' };
     }
 
     setAllSantriList((prev) =>
@@ -1301,7 +1359,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Data santri tidak ditemukan.' };
     }
 
-    // Calculate local related violation count
     const relatedViolations = allRiwayatList.filter(
       (r) =>
         r.santriId === id ||
@@ -1309,7 +1366,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     const violationCount = relatedViolations.length;
 
-    // If santri has violations and user did not confirm deleting them, warn first
     if (violationCount > 0 && !options?.deleteViolations) {
       return {
         success: false,
@@ -1318,7 +1374,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // Database deletion (Order: 1. public.pelanggaran -> 2. public.santri)
     const dbResult = await deleteSantriFromDB(
       existing,
       { deleteViolations: options?.deleteViolations },
@@ -1334,8 +1389,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    // State & Storage Synchronization
-    // 1. Clean up child transaction records from local state
+    // Clean up local state
     if (violationCount > 0 || options?.deleteViolations) {
       setAllRiwayatList((prev) =>
         prev.filter(
@@ -1345,7 +1399,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         )
       );
 
-      // Clean up any pembinaan records for this santri
       setAllPembinaanList((prev) =>
         prev.filter(
           (p) =>
@@ -1355,10 +1408,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
-    // 2. Remove Santri from list
     setAllSantriList((prev) => prev.filter((s) => s.id !== id));
 
-    // 3. Clear selected detail modal if currently open for this santri
     if (selectedSantriForDetail?.id === id) {
       setSelectedSantriForDetail(null);
     }
@@ -1366,7 +1417,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (violationCount > 0) {
       showToast(
         'Data Santri & Pelanggaran Dihapus',
-        `Data santri ${existing.nama} beserta ${violationCount} data pelanggaran contoh berhasil dibersihkan.`,
+        `Data santri ${existing.nama} beserta ${violationCount} data pelanggaran berhasil dibersihkan dari database.`,
         'info'
       );
     } else {
@@ -1380,7 +1431,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: 'Data santri berhasil dihapus.' };
   };
 
-  const importSantriBatch = (
+  const importSantriBatch = async (
     santriDataList: Array<{
       nis: string;
       nama: string;
@@ -1393,7 +1444,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       statusPembinaan?: Santri['statusPembinaan'];
       keterangan?: string;
     }>
-  ): { success: boolean; insertedCount: number; message: string } => {
+  ): Promise<{ success: boolean; insertedCount: number; message: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
       return {
         success: false,
@@ -1407,53 +1458,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const existingNisSet = new Set(allSantriList.map((s) => s.nis.toLowerCase().trim()));
-    const newSantriEntries: Santri[] = [];
+    const validItems = santriDataList.filter((item) => {
+      const cleanNis = item.nis.trim().toLowerCase();
+      if (!cleanNis || existingNisSet.has(cleanNis)) return false;
+      existingNisSet.add(cleanNis);
+      return true;
+    });
 
-    for (const item of santriDataList) {
-      const cleanNis = item.nis.trim();
-      if (!cleanNis || existingNisSet.has(cleanNis.toLowerCase())) {
-        continue;
-      }
-      existingNisSet.add(cleanNis.toLowerCase());
-
-      // Resolve musyrif nama if needed
-      let finalMusyrifNama = item.musyrifNama;
-      if (!finalMusyrifNama && item.musyrifId) {
-        const musy = usersList.find((u) => u.id === item.musyrifId);
-        finalMusyrifNama = musy ? musy.nama : undefined;
-      }
-
-      newSantriEntries.push({
-        id: `s-${item.unit.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        nis: cleanNis,
-        nama: item.nama.trim().toUpperCase(),
-        kelas: item.kelas.trim(),
-        unit: item.unit,
-        totalPoin: 0,
-        statusPembinaan: item.statusPembinaan || 'Baik',
-        musyrifId: item.musyrifId,
-        musyrifNama: finalMusyrifNama,
-        asrama: item.asrama?.trim() || `Asrama ${item.unit}`,
-        kamar: item.kamar?.trim() || '-',
-        keterangan: item.keterangan?.trim()
-      });
-    }
-
-    if (newSantriEntries.length === 0) {
+    if (validItems.length === 0) {
       return { success: false, insertedCount: 0, message: 'Semua data di dalam file sudah ada (duplikat NIS) di sistem.' };
     }
 
-    // Insert new data (preserves all existing MA and other santri records)
-    setAllSantriList((prev) => [...newSantriEntries, ...prev]);
+    const dbRes = await importSantriBatchToDB(validItems, user.role);
+    if (!dbRes.success) {
+      return { success: false, insertedCount: 0, message: dbRes.error || 'Gagal menyimpan ke database Supabase.' };
+    }
+
+    // Refresh single source of truth from Supabase
+    const latestSantri = await fetchSantriFromDB();
+    if (latestSantri && latestSantri.length > 0) {
+      setAllSantriList(latestSantri);
+    } else if (dbRes.insertedData && dbRes.insertedData.length > 0) {
+      setAllSantriList((prev) => [...dbRes.insertedData!, ...prev]);
+    }
+
     showToast(
       'Import Excel Berhasil',
-      `Sebanyak ${newSantriEntries.length} santri baru berhasil ditambahkan ke database.`,
+      `Sebanyak ${dbRes.insertedCount} santri baru berhasil disimpan permanen ke database Supabase.`,
       'success'
     );
     return {
       success: true,
-      insertedCount: newSantriEntries.length,
-      message: `${newSantriEntries.length} data santri berhasil diimport.`
+      insertedCount: dbRes.insertedCount,
+      message: `${dbRes.insertedCount} data santri berhasil diimport.`
     };
   };
 
@@ -1464,11 +1501,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return findPembinaanBySinglePoin(poin, masterPembinaanList);
   };
 
-  const catatPelanggaranBaru = (data: {
+  const catatPelanggaranBaru = async (data: {
     santriId: string;
     pelanggaranId: string;
     catatan?: string;
-  }): boolean => {
+  }): Promise<boolean> => {
     if (!user) {
       showToast('Gagal Mencatat', 'Sesi login tidak valid. Silakan login kembali.', 'error');
       return false;
@@ -1482,7 +1519,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    // STRICT UNIT ISOLATION CHECK: Reject if actor is not Kasie and units don't match
     if (user.role !== 'KASIE_KEPESANTRENAN' && user.unit !== targetSantri.unit) {
       showToast(
         'Akses Ditolak!',
@@ -1492,43 +1528,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    const now = new Date();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    const day = now.getDate();
-    const month = months[now.getMonth()];
-    const year = now.getFullYear();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const mins = String(now.getMinutes()).padStart(2, '0');
-    const formattedTanggal = `${day} ${month} ${year}, ${hours}.${mins} WIB`;
-
-    // 8-Level coaching recommendation based on SINGLE POINT
     const singlePoin = targetPelanggaran.poin;
     const rekomendasi = getPembinaanBySinglePoin(singlePoin);
 
-    const newRecord: RiwayatPelanggaran = {
-      id: `log-${Date.now()}`,
-      tanggal: formattedTanggal,
-      timestamp: now.toISOString(),
-      santriId: targetSantri.id,
-      santriNama: targetSantri.nama,
-      santriKelas: targetSantri.kelas,
-      santriUnit: targetSantri.unit,
-      jenisPelanggaranId: targetPelanggaran.id,
-      jenisPelanggaranNama: targetPelanggaran.jenis,
-      poin: targetPelanggaran.poin,
-      hukuman: targetPelanggaran.konsekuensi,
-      pembinaanTingkat: rekomendasi ? rekomendasi.nama_tingkat : undefined,
-      rekomendasiPembinaan: rekomendasi ? rekomendasi.jenis_pembinaan : undefined,
-      status: targetPelanggaran.poin >= 50 ? 'Belum Selesai' : 'Selesai',
-      catatan: data.catatan || 'Tercatat melalui sistem SIMKA.ID',
-      pencatat: user.nama,
-      pencatatId: user.id
-    };
+    const dbRes = await insertPelanggaranToDB(
+      {
+        santriId: targetSantri.id,
+        santriNama: targetSantri.nama,
+        santriKelas: targetSantri.kelas,
+        santriUnit: targetSantri.unit,
+        jenisPelanggaranId: targetPelanggaran.id,
+        jenisPelanggaranNama: targetPelanggaran.jenis,
+        poin: targetPelanggaran.poin,
+        hukuman: targetPelanggaran.konsekuensi,
+        catatan: data.catatan || 'Tercatat melalui sistem SIMKA.ID',
+        pembinaanTingkat: rekomendasi ? rekomendasi.nama_tingkat : undefined,
+        rekomendasiPembinaan: rekomendasi ? rekomendasi.jenis_pembinaan : undefined,
+        pencatatId: user.id,
+        pencatatNama: user.nama
+      },
+      user.role,
+      user.unit
+    );
 
-    // Prepend to all riwayat
-    setAllRiwayatList((prev) => [newRecord, ...prev]);
+    if (!dbRes.success || !dbRes.data) {
+      showToast('Gagal Menyimpan', dbRes.error || 'Gagal menyimpan transaksi pelanggaran ke database.', 'error');
+      return false;
+    }
 
-    // Update Santri total point & aggregate status
+    setAllRiwayatList((prev) => [dbRes.data!, ...prev]);
+
+    // Recalculate Santri's total point in state
     setAllSantriList((prev) =>
       prev.map((s) => {
         if (s.id === targetSantri.id) {
@@ -1550,31 +1580,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast(
       'Pelanggaran Tercatat!',
-      `Pelanggaran santri ${targetSantri.nama} (${targetPelanggaran.poin} poin tunggal - Unit ${targetSantri.unit}) berhasil disimpan.`,
+      `Pelanggaran santri ${targetSantri.nama} (${targetPelanggaran.poin} poin - Unit ${targetSantri.unit}) berhasil disimpan ke database.`,
       'success'
     );
 
     return true;
   };
 
-  const toggleStatusPelanggaran = (id: string) => {
+  const toggleStatusPelanggaran = async (id: string) => {
+    const existing = allRiwayatList.find((r) => r.id === id);
+    if (!existing) return;
+    const newStatus = existing.status === 'Selesai' ? 'Belum Selesai' : 'Selesai';
+    
+    await updatePelanggaranStatusInDB(id, newStatus);
     setAllRiwayatList((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const newStatus = item.status === 'Selesai' ? 'Belum Selesai' : 'Selesai';
-          showToast(
-            'Status Diperbarui',
-            `Status hukuman diubah menjadi "${newStatus}".`,
-            'info'
-          );
-          return { ...item, status: newStatus };
-        }
-        return item;
-      })
+      prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
     );
+    showToast('Status Diperbarui', `Status hukuman diubah menjadi "${newStatus}".`, 'info');
   };
 
-  const deleteRiwayatPelanggaran = (id: string): { success: boolean; message: string } => {
+  const deleteRiwayatPelanggaran = async (id: string): Promise<{ success: boolean; message: string }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
       showToast('Akses Ditolak', 'Anda tidak memiliki izin untuk menghapus data pelanggaran.', 'error');
       return { success: false, message: 'Anda tidak memiliki izin untuk menghapus data pelanggaran.' };
@@ -1586,10 +1611,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Catatan pelanggaran tidak ditemukan.' };
     }
 
-    // 1. Remove from all riwayat list
+    const dbRes = await deletePelanggaranRecordFromDB(id, user.role);
+    if (!dbRes.success) {
+      showToast('Gagal Menghapus', dbRes.error || 'Gagal menghapus data dari database.', 'error');
+      return { success: false, message: dbRes.error || 'Gagal menghapus data' };
+    }
+
     setAllRiwayatList((prev) => prev.filter((r) => r.id !== id));
 
-    // 2. Recalculate Santri's total point & status pembinaan
     setAllSantriList((prev) =>
       prev.map((s) => {
         if (s.id === targetRecord.santriId || s.nama === targetRecord.santriNama) {
@@ -1611,7 +1640,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast(
       'Pelanggaran Dihapus',
-      `Catatan pelanggaran ${targetRecord.santriNama} (${targetRecord.jenisPelanggaranNama}) berhasil dihapus permanen. Poin santri telah disesuaikan.`,
+      `Catatan pelanggaran ${targetRecord.santriNama} (${targetRecord.jenisPelanggaranNama}) berhasil dihapus permanen.`,
       'success'
     );
     return { success: true, message: 'Catatan pelanggaran berhasil dihapus.' };
@@ -1630,12 +1659,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (user) {
       const newHash = await hashPassword(newPass);
+      await resetUserPasswordInDB(user.id, newHash, 'KASIE_KEPESANTRENAN');
       setUsersList((prev) =>
         prev.map((u) => (u.id === user.id ? { ...u, password_hash: newHash } : u))
       );
     }
 
-    showToast('Berhasil', 'Kata sandi akun Anda berhasil diperbarui.', 'success');
+    showToast('Berhasil', 'Kata sandi akun Anda berhasil diperbarui di database.', 'success');
     return { success: true, message: 'Kata sandi berhasil diperbarui.' };
   };
 
@@ -1726,7 +1756,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // --------------------------------------------------------------------------
-  // SCOPED DASHBOARD STATISTICS & ANALYTICS
+  // SCOPED DASHBOARD STATISTICS & ANALYTICS (CALCULATED LIVE FROM SUPABASE DATA)
   // --------------------------------------------------------------------------
   const belumSelesai = riwayatList.filter((r) => r.status === 'Belum Selesai').length;
   const terseelesaikan = riwayatList.filter((r) => r.status === 'Selesai').length;
@@ -1775,7 +1805,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const getRecentActivities = (): ActivityItem[] => {
     const activities: ActivityItem[] = [];
 
-    // Add recent violations
     riwayatList.slice(0, 5).forEach((r) => {
       activities.push({
         id: `act-plg-${r.id}`,
@@ -1788,7 +1817,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
 
-    // Add recent coaching
     pembinaanList.slice(0, 5).forEach((p) => {
       activities.push({
         id: `act-pbn-${p.id}`,
@@ -1919,6 +1947,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedSantriForDetail,
         login,
         logout,
+        refreshData,
+        isLoadingData,
         deleteRiwayatPelanggaran,
         addPelanggaran,
         updatePelanggaran,

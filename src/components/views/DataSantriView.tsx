@@ -146,18 +146,28 @@ export const DataSantriView: React.FC = () => {
     setShowAddModal(true);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const [isAddingSantri, setIsAddingSantri] = useState(false);
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nis.trim() || !formData.nama.trim() || !formData.kelas.trim()) {
       setFormError('NIS, Nama Santri, dan Kelas wajib diisi.');
       return;
     }
 
-    const res = addSantri(formData);
-    if (res.success) {
-      setShowAddModal(false);
-    } else {
-      setFormError(res.message || 'Gagal menambahkan santri baru.');
+    setIsAddingSantri(true);
+    setFormError(null);
+    try {
+      const res = await addSantri(formData);
+      if (res.success) {
+        setShowAddModal(false);
+      } else {
+        setFormError(res.message || 'Gagal menambahkan santri baru.');
+      }
+    } catch (err: any) {
+      setFormError(err?.message || 'Terjadi kesalahan sistem.');
+    } finally {
+      setIsAddingSantri(false);
     }
   };
 

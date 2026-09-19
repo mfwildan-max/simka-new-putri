@@ -17,6 +17,7 @@ import { LoginView } from './components/views/LoginView';
 import { DetailSantriModal } from './components/common/DetailSantriModal';
 import { DatabaseSettingsModal } from './components/common/DatabaseSettingsModal';
 import { ToastContainer } from './components/common/Toast';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const AppContent: React.FC = () => {
   const { currentRoute, isAuthenticated, user, isDatabaseModalOpen, closeDatabaseModal, refreshData } = useApp();
@@ -72,7 +73,9 @@ const AppContent: React.FC = () => {
 
         {/* Dynamic Page Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {renderActiveView()}
+          <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Halaman">
+            {renderActiveView()}
+          </ErrorBoundary>
         </main>
       </div>
 

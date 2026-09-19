@@ -25,6 +25,7 @@ export interface Santri {
   totalPoin: number;
   musyrifId?: string;
   musyrifNama?: string;
+  musyrif?: string;
   asrama?: string;
   statusPembinaan?: 'Baik' | 'Peringatan Lisan' | 'SP 1' | 'SP 2' | 'SP 3' | 'Dikeluarkan';
   keterangan?: string;
@@ -52,6 +53,12 @@ export interface MasterPembinaan {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+  minPoin?: number;
+  maxPoin?: number;
+  konsekuensi?: string;
+  kategori?: string;
+  rentangPoin?: string;
+  pembina?: string;
 }
 
 export interface RiwayatPelanggaran {

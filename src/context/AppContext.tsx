@@ -1506,45 +1506,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    if (santriDataList.length === 0) {
+    if (!santriDataList || santriDataList.length === 0) {
       return { success: false, insertedCount: 0, message: 'Tidak ada data valid yang dapat diimport.' };
     }
 
-    const existingNisSet = new Set(allSantriList.map((s) => s.nis.toLowerCase().trim()));
+    const existingNisSet = new Set(
+      (allSantriList || [])
+        .map((s) => String(s?.nis || (s as any)?.kode_santri || '').toLowerCase().trim())
+        .filter(Boolean)
+    );
+
     const validItems = santriDataList.filter((item) => {
-      const cleanNis = item.nis.trim().toLowerCase();
+      if (!item || !item.nis) return false;
+      const cleanNis = String(item.nis).trim().toLowerCase();
       if (!cleanNis || existingNisSet.has(cleanNis)) return false;
       existingNisSet.add(cleanNis);
       return true;
     });
 
     if (validItems.length === 0) {
-      return { success: false, insertedCount: 0, message: 'Semua data di dalam file sudah ada (duplikat NIS) di sistem.' };
+      return {
+        success: false,
+        insertedCount: 0,
+        message: 'Semua data santri di dalam file sudah terdaftar (duplikat NIS) di database.'
+      };
     }
 
-    const dbRes = await importSantriBatchToDB(validItems, user.role);
-    if (!dbRes.success) {
-      return { success: false, insertedCount: 0, message: dbRes.error || 'Gagal menyimpan ke database Supabase.' };
-    }
+    try {
+      const dbRes = await importSantriBatchToDB(validItems, user.role);
+      if (!dbRes.success) {
+        return { success: false, insertedCount: 0, message: dbRes.error || 'Gagal menyimpan ke database Supabase.' };
+      }
 
-    // Refresh single source of truth from Supabase
-    const latestSantri = await fetchSantriFromDB();
-    if (latestSantri && latestSantri.length > 0) {
-      setAllSantriList(latestSantri);
-    } else if (dbRes.insertedData && dbRes.insertedData.length > 0) {
-      setAllSantriList((prev) => [...dbRes.insertedData!, ...prev]);
-    }
+      // Refresh single source of truth from Supabase
+      try {
+        const latestSantri = await fetchSantriFromDB();
+        if (latestSantri && latestSantri.length > 0) {
+          setAllSantriList(latestSantri);
+        } else if (dbRes.insertedData && dbRes.insertedData.length > 0) {
+          setAllSantriList((prev) => [...dbRes.insertedData!, ...(prev || [])]);
+        }
+      } catch (fetchErr) {
+        console.warn('[REFRESH AFTER IMPORT WARNING]', fetchErr);
+        if (dbRes.insertedData && dbRes.insertedData.length > 0) {
+          setAllSantriList((prev) => [...dbRes.insertedData!, ...(prev || [])]);
+        }
+      }
 
-    showToast(
-      'Import Excel Berhasil',
-      `Sebanyak ${dbRes.insertedCount} santri baru berhasil disimpan permanen ke database Supabase.`,
-      'success'
-    );
-    return {
-      success: true,
-      insertedCount: dbRes.insertedCount,
-      message: `${dbRes.insertedCount} data santri berhasil diimport.`
-    };
+      showToast(
+        'Import Excel Berhasil',
+        `Sebanyak ${dbRes.insertedCount} data santri baru berhasil disimpan permanen ke database Supabase.`,
+        'success'
+      );
+      return {
+        success: true,
+        insertedCount: dbRes.insertedCount,
+        message: `${dbRes.insertedCount} data santri berhasil diimport.`
+      };
+    } catch (err: any) {
+      console.error('[IMPORT SANTRI BATCH EXCEPTION]', err);
+      return {
+        success: false,
+        insertedCount: 0,
+        message: err?.message || 'Terjadi kesalahan sistem saat mengimpor data santri.'
+      };
+    }
   };
 
   // --------------------------------------------------------------------------

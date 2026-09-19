@@ -5,6 +5,7 @@ import { UnitPesantren, UnitFilter, Santri } from '../../types';
 import { ImportSantriModal } from '../common/ImportSantriModal';
 import { EditSantriModal } from '../common/EditSantriModal';
 import { DeleteSantriModal } from '../common/DeleteSantriModal';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { exportSantriToExcel, generateSantriExcelTemplate } from '../../lib/excelHelper';
 import {
   Search,
@@ -726,11 +727,16 @@ export const DataSantriView: React.FC = () => {
       />
 
       {/* Excel Import Modal */}
-      <ImportSantriModal
-        isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        defaultUnit={effectiveUnit}
-      />
+      <ErrorBoundary
+        fallbackTitle="Gagal Membuka Dialog Import Santri"
+        onReset={() => setShowImportModal(false)}
+      >
+        <ImportSantriModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          defaultUnit={effectiveUnit}
+        />
+      </ErrorBoundary>
     </div>
   );
 };

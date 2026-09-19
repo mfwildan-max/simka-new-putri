@@ -886,6 +886,302 @@ export async function parseUsersExcel(
   return { rows: parsedRows, validCount, duplicateCount, errorCount };
 }
 
+/**
+ * Normalizes unit string to standard SMP, MA, SMA for Santri
+ */
+export function normalizeSantriUnit(rawUnit?: string, fallback: UnitPesantren = 'SMP'): UnitPesantren {
+  if (!rawUnit) return fallback;
+  const clean = String(rawUnit).trim().toUpperCase();
+  if (clean === 'SMP' || clean.includes('SMP') || clean.includes('MTS')) return 'SMP';
+  if (clean === 'MA' || clean === 'UNIT MA' || clean.includes('ALIYAH') || clean === 'MA') return 'MA';
+  if (clean === 'SMA' || clean.includes('SMA')) return 'SMA';
+  return fallback;
+}
+
+/**
+ * Robust Santri Excel Parser supporting flexible header formats, duplicate detection, and unit validation
+ */
+export function parseSantriExcel(
+  fileBuffer: ArrayBuffer,
+  existingSantriList: Array<{ nis?: string; kode_santri?: string; nama?: string; unit?: string }>,
+  selectedUnit: UnitPesantren,
+  musyrifUsers: UserAccount[] = [],
+  isSuperadmin: boolean = true,
+  userUnit?: string
+): {
+  rows: SantriImportRow[];
+  validCount: number;
+  duplicateCount: number;
+  errorCount: number;
+} {
+  const workbook = read(new Uint8Array(fileBuffer), { type: 'array' });
+  const firstSheetName = workbook.SheetNames[0];
+  if (!firstSheetName) {
+    throw new Error('File Excel tidak memiliki lembar kerja (worksheet).');
+  }
+
+  const worksheet = workbook.Sheets[firstSheetName];
+  const rawJson = utils.sheet_to_json<any[]>(worksheet, { header: 1, defval: '' });
+
+  if (!rawJson || rawJson.length === 0) {
+    throw new Error('File Excel kosong atau tidak terbaca.');
+  }
+
+  // Find Header Row Index
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(rawJson.length, 10); i++) {
+    const row = rawJson[i];
+    if (Array.isArray(row)) {
+      const rowStr = row.map((c) => String(c || '').toLowerCase()).join(' ');
+      if (
+        rowStr.includes('nama') ||
+        rowStr.includes('nis') ||
+        rowStr.includes('kode') ||
+        rowStr.includes('santri')
+      ) {
+        headerRowIndex = i;
+        break;
+      }
+    }
+  }
+
+  const headers = (rawJson[headerRowIndex] || []).map((h: any) =>
+    String(h || '').trim().toLowerCase()
+  );
+
+  const findCol = (keywords: string[]): number => {
+    return headers.findIndex((h: string) =>
+      keywords.some((k) => h === k || h.includes(k))
+    );
+  };
+
+  // Header column mapping with multiple synonyms
+  let colNis = findCol(['nis santri', 'kode santri', 'id santri', 'nis', 'kode', 'nomor induk', 'no induk']);
+  let colNama = findCol(['nama lengkap santri', 'nama santri', 'nama lengkap', 'nama']);
+  let colUnit = findCol(['unit pesantren', 'unit santri', 'unit', 'jenjang']);
+  let colKelas = findCol(['kelas santri', 'kelas', 'tingkat']);
+  let colMusyrif = findCol(['musyrif pembina', 'musyrif asrama', 'musyrif', 'pembina', 'ustadz']);
+  let colAsramaKamar = findCol(['asrama/kamar', 'asrama & kamar', 'asrama / kamar']);
+  let colAsrama = findCol(['gedung asrama', 'asrama santri', 'asrama', 'gedung']);
+  let colKamar = findCol(['nomor kamar', 'no kamar', 'kamar']);
+  let colStatus = findCol(['status pembinaan', 'status santri', 'status']);
+  let colKeterangan = findCol(['keterangan', 'catatan', 'keterangan tambahan']);
+
+  // Position fallback if no matching headers found
+  if (colNis === -1 && colNama === -1) {
+    colNis = 0;
+    colNama = 1;
+    colUnit = 2;
+    colKelas = 3;
+    colMusyrif = 4;
+    colAsramaKamar = 5;
+    colStatus = 6;
+    colKeterangan = 7;
+  }
+
+  // Pre-index existing santri by NIS (case-insensitive)
+  const existingNisMap = new Map<string, { nama?: string; unit?: string }>();
+  (existingSantriList || []).forEach((s) => {
+    const rawNis = s?.nis || s?.kode_santri;
+    if (rawNis) {
+      const clean = String(rawNis).trim().toLowerCase();
+      if (clean) existingNisMap.set(clean, { nama: s.nama, unit: s.unit });
+    }
+  });
+
+  const seenNisInBatch = new Set<string>();
+  const parsedRows: SantriImportRow[] = [];
+
+  for (let i = headerRowIndex + 1; i < rawJson.length; i++) {
+    const row = rawJson[i];
+    if (!row || !Array.isArray(row) || row.length === 0) continue;
+
+    // Check if entire row is empty
+    if (row.every((c: any) => c === undefined || c === null || String(c).trim() === '')) {
+      continue;
+    }
+
+    const firstCell = String(row[0] || '').trim();
+    if (firstCell.startsWith('#')) {
+      // Ignore comment/instruction row
+      continue;
+    }
+
+    const rawNis = colNis !== -1 && row[colNis] !== undefined ? String(row[colNis]).trim() : '';
+    const rawNama = colNama !== -1 && row[colNama] !== undefined ? String(row[colNama]).trim() : '';
+    const rawUnit = colUnit !== -1 && row[colUnit] !== undefined ? String(row[colUnit]).trim() : '';
+    const rawKelas = colKelas !== -1 && row[colKelas] !== undefined ? String(row[colKelas]).trim() : '';
+    const rawMusyrif = colMusyrif !== -1 && row[colMusyrif] !== undefined ? String(row[colMusyrif]).trim() : '';
+    let rawAsrama = colAsrama !== -1 && row[colAsrama] !== undefined ? String(row[colAsrama]).trim() : '';
+    let rawKamar = colKamar !== -1 && row[colKamar] !== undefined ? String(row[colKamar]).trim() : '';
+    const rawStatus = colStatus !== -1 && row[colStatus] !== undefined ? String(row[colStatus]).trim() : '';
+    const rawKeterangan = colKeterangan !== -1 && row[colKeterangan] !== undefined ? String(row[colKeterangan]).trim() : '';
+
+    // If combined Asrama/Kamar column was provided
+    if (colAsramaKamar !== -1 && row[colAsramaKamar] !== undefined) {
+      const combined = String(row[colAsramaKamar]).trim();
+      if (combined) {
+        if (combined.includes('/')) {
+          const parts = combined.split('/');
+          rawAsrama = rawAsrama || parts[0]?.trim() || '';
+          rawKamar = rawKamar || parts[1]?.trim() || '';
+        } else {
+          rawAsrama = rawAsrama || combined;
+        }
+      }
+    }
+
+    const rowNum = i + 1;
+
+    // 1. Mandatory Validation: NIS
+    if (!rawNis) {
+      parsedRows.push({
+        rowNumber: rowNum,
+        nis: '(Kosong)',
+        nama: rawNama || '-',
+        unit: normalizeSantriUnit(rawUnit, selectedUnit),
+        kelas: rawKelas || '-',
+        musyrif: rawMusyrif || '-',
+        asrama: rawAsrama,
+        kamar: rawKamar,
+        status: 'error',
+        errorMessage: 'NIS / Kode Santri wajib diisi.'
+      });
+      continue;
+    }
+
+    // 2. Mandatory Validation: Nama
+    if (!rawNama) {
+      parsedRows.push({
+        rowNumber: rowNum,
+        nis: rawNis,
+        nama: '(Kosong)',
+        unit: normalizeSantriUnit(rawUnit, selectedUnit),
+        kelas: rawKelas || '-',
+        musyrif: rawMusyrif || '-',
+        asrama: rawAsrama,
+        kamar: rawKamar,
+        status: 'error',
+        errorMessage: 'Nama Santri wajib diisi.'
+      });
+      continue;
+    }
+
+    // 3. Mandatory Validation: Kelas
+    if (!rawKelas) {
+      parsedRows.push({
+        rowNumber: rowNum,
+        nis: rawNis,
+        nama: rawNama.toUpperCase(),
+        unit: normalizeSantriUnit(rawUnit, selectedUnit),
+        kelas: '(Kosong)',
+        musyrif: rawMusyrif || '-',
+        asrama: rawAsrama,
+        kamar: rawKamar,
+        status: 'error',
+        errorMessage: 'Kelas Santri wajib diisi.'
+      });
+      continue;
+    }
+
+    // Resolve Unit
+    const resolvedUnit = normalizeSantriUnit(rawUnit, selectedUnit);
+
+    // Enforce role-based unit access if non-superadmin
+    if (!isSuperadmin && userUnit && resolvedUnit !== userUnit) {
+      parsedRows.push({
+        rowNumber: rowNum,
+        nis: rawNis,
+        nama: rawNama.toUpperCase(),
+        unit: resolvedUnit,
+        kelas: rawKelas,
+        musyrif: rawMusyrif || '-',
+        asrama: rawAsrama,
+        kamar: rawKamar,
+        status: 'error',
+        errorMessage: `Unit ${resolvedUnit} di luar wewenang Anda (${userUnit}).`
+      });
+      continue;
+    }
+
+    // 4. Duplicate Check: Against DB and batch
+    const nisKey = rawNis.toLowerCase();
+    if (existingNisMap.has(nisKey)) {
+      const existInfo = existingNisMap.get(nisKey);
+      parsedRows.push({
+        rowNumber: rowNum,
+        nis: rawNis,
+        nama: rawNama.toUpperCase(),
+        unit: resolvedUnit,
+        kelas: rawKelas,
+        musyrif: rawMusyrif || '-',
+        asrama: rawAsrama || `Asrama ${resolvedUnit}`,
+        kamar: rawKamar || '-',
+        statusPembinaan: rawStatus || 'Baik',
+        keterangan: rawKeterangan,
+        status: 'duplicate',
+        errorMessage: `NIS sudah terdaftar (${existInfo?.nama || 'Santri'} - ${existInfo?.unit || resolvedUnit}).`
+      });
+      continue;
+    }
+
+    if (seenNisInBatch.has(nisKey)) {
+      parsedRows.push({
+        rowNumber: rowNum,
+        nis: rawNis,
+        nama: rawNama.toUpperCase(),
+        unit: resolvedUnit,
+        kelas: rawKelas,
+        musyrif: rawMusyrif || '-',
+        asrama: rawAsrama || `Asrama ${resolvedUnit}`,
+        kamar: rawKamar || '-',
+        statusPembinaan: rawStatus || 'Baik',
+        keterangan: rawKeterangan,
+        status: 'duplicate',
+        errorMessage: 'NIS duplikat di dalam file Excel ini.'
+      });
+      continue;
+    }
+
+    seenNisInBatch.add(nisKey);
+
+    // Resolve Musyrif name match if available
+    let resolvedMusyNama: string | undefined = rawMusyrif;
+    if (rawMusyrif && musyrifUsers.length > 0) {
+      const cleanM = rawMusyrif.toLowerCase().replace(/ust\.|ustadz\.|s\.pd|lc|s\.pd\.i/g, '').trim();
+      const matched = musyrifUsers.find((m) => {
+        if (!m || !m.nama) return false;
+        const mNama = m.nama.toLowerCase();
+        return mNama.includes(cleanM) || cleanM.includes(mNama);
+      });
+      if (matched && matched.nama) {
+        resolvedMusyNama = matched.nama;
+      }
+    }
+
+    parsedRows.push({
+      rowNumber: rowNum,
+      nis: rawNis,
+      nama: rawNama.toUpperCase(),
+      unit: resolvedUnit,
+      kelas: rawKelas,
+      musyrif: rawMusyrif || undefined,
+      resolvedMusyrifNama: resolvedMusyNama,
+      asrama: rawAsrama || `Asrama ${resolvedUnit}`,
+      kamar: rawKamar || undefined,
+      statusPembinaan: rawStatus || 'Baik',
+      keterangan: rawKeterangan || undefined,
+      status: 'valid'
+    });
+  }
+
+  const validCount = parsedRows.filter((r) => r.status === 'valid').length;
+  const duplicateCount = parsedRows.filter((r) => r.status === 'duplicate').length;
+  const errorCount = parsedRows.filter((r) => r.status === 'error').length;
+
+  return { rows: parsedRows, validCount, duplicateCount, errorCount };
+}
+
 // ============================================================================
 // SANTRI EXCEL HELPERS (PRESERVED)
 // ============================================================================

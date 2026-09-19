@@ -18,7 +18,7 @@ import {
   initialRiwayatPelanggaran,
   initialPembinaanRecords
 } from '../data/mockData';
-import { hashPassword, verifyPassword } from './auth';
+import { hashPassword, verifyPassword, mapJabatanToRole, mapUnit } from './auth';
 
 export const STORAGE_KEY_SUPABASE_URL = 'SIMKA_SUPABASE_URL';
 export const STORAGE_KEY_SUPABASE_KEY = 'SIMKA_SUPABASE_ANON_KEY';
@@ -343,16 +343,20 @@ export async function fetchUsersFromDB(): Promise<UserAccount[] | null> {
       return null;
     }
 
-    return data.map((row: any) => ({
-      id: String(row.id),
-      nama: String(row.nama || ''),
-      username: String(row.username || ''),
-      password_hash: row.password || '',
-      role: (row.jabatan || 'MUSYRIF') as UserRole,
-      unit: (row.unit || 'SMP') as 'ALL' | UnitPesantren,
-      is_active: row.is_active !== false,
-      created_at: row.created_at
-    }));
+    return data.map((row: any) => {
+      const role = mapJabatanToRole(row.jabatan);
+      const unit = mapUnit(row.unit, role);
+      return {
+        id: String(row.id),
+        nama: String(row.nama || ''),
+        username: String(row.username || ''),
+        password_hash: row.password || '',
+        role,
+        unit,
+        is_active: row.is_active !== false,
+        created_at: row.created_at
+      };
+    });
   } catch (err: any) {
     logAuthDebug('Exception fetching users from Supabase:', err?.message);
     return null;
@@ -393,14 +397,16 @@ export async function authenticateUser(
 
         const isValid = await verifyPassword(passwordInput, dbUser.password);
         if (isValid) {
+          const role = mapJabatanToRole(dbUser.jabatan);
+          const unit = mapUnit(dbUser.unit, role);
           return {
             success: true,
             user: {
               id: String(dbUser.id),
               nama: dbUser.nama,
               username: dbUser.username,
-              role: (dbUser.jabatan || 'MUSYRIF') as UserRole,
-              unit: (dbUser.unit || 'SMP') as 'ALL' | UnitPesantren,
+              role,
+              unit,
               is_active: Boolean(dbUser.is_active)
             }
           };

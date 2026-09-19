@@ -98,6 +98,144 @@ export function getUnitDisplayName(unit: 'ALL' | UnitPesantren): string {
   }
 }
 
+export type AppPermission =
+  | 'view_dashboard'
+  | 'view_students'
+  | 'create_student'
+  | 'edit_student'
+  | 'delete_student'
+  | 'import_students'
+  | 'export_students'
+  | 'view_violations_rekap'
+  | 'export_violations_rekap'
+  | 'delete_violation_record'
+  | 'create_violation'
+  | 'view_violation_master'
+  | 'manage_violation_master'
+  | 'export_violation_master'
+  | 'manage_users'
+  | 'database_sync'
+  | 'manage_pembinaan';
+
+/**
+ * Centralized Permission Guard checking fine-grained role privileges.
+ */
+export function can(user: UserAccount | null | undefined, permission: AppPermission): boolean {
+  if (!user) return false;
+
+  switch (permission) {
+    case 'view_dashboard':
+      // Musyrif, Koordinator, Kasie/Kabid can all view Dashboard (scoped to their unit)
+      return true;
+
+    case 'view_students':
+      return true;
+
+    case 'create_student':
+    case 'edit_student':
+      // Musyrif & Koordinator can add/edit students within their own unit; Kasie in any unit
+      return true;
+
+    case 'delete_student':
+    case 'import_students':
+    case 'export_students':
+      // Kasie/Kabid ONLY
+      return user.role === 'KASIE_KEPESANTRENAN';
+
+    case 'view_violations_rekap':
+      return true;
+
+    case 'export_violations_rekap':
+      // Kasie/Kabid and Koordinator are allowed to export PDF. Musyrif is NOT.
+      return user.role === 'KASIE_KEPESANTRENAN' || user.role === 'KOORDINATOR';
+
+    case 'delete_violation_record':
+      // Kasie/Kabid ONLY
+      return user.role === 'KASIE_KEPESANTRENAN';
+
+    case 'create_violation':
+      // All roles can record violations
+      return true;
+
+    case 'view_violation_master':
+      // All roles can view the master dictionary
+      return true;
+
+    case 'manage_violation_master':
+    case 'export_violation_master':
+      // Kasie/Kabid ONLY (no add/edit/delete/import/reset/export for Musyrif/Koordinator)
+      return user.role === 'KASIE_KEPESANTRENAN';
+
+    case 'manage_users':
+      // Kasie/Kabid ONLY
+      return user.role === 'KASIE_KEPESANTRENAN';
+
+    case 'database_sync':
+      // Kasie/Kabid ONLY
+      return user.role === 'KASIE_KEPESANTRENAN';
+
+    case 'manage_pembinaan':
+      return user.role === 'KASIE_KEPESANTRENAN' || user.role === 'KOORDINATOR';
+
+    default:
+      return false;
+  }
+}
+
+/**
+ * Checks whether user can access a specific target unit.
+ */
+export function canAccessUnit(
+  user: UserAccount | null | undefined,
+  targetUnit: string | UnitPesantren | 'ALL'
+): boolean {
+  if (!user) return false;
+  if (user.role === 'KASIE_KEPESANTRENAN') {
+    return true; // Kasie/Kabid can access ALL, SMP, MA, SMA
+  }
+  // Koordinator and Musyrif are strictly restricted to their assigned unit
+  return user.unit === targetUnit;
+}
+
+/**
+ * Robust database column mapping for 'jabatan' to UserRole enum.
+ */
+export function mapJabatanToRole(jabatan?: string | null): UserRole {
+  if (!jabatan) return 'MUSYRIF';
+  const clean = jabatan.toUpperCase().trim();
+  if (
+    clean.includes('KASIE') ||
+    clean.includes('KABID') ||
+    clean.includes('SUPERADMIN') ||
+    clean.includes('ADMIN') ||
+    clean === 'KASIE_KEPESANTRENAN'
+  ) {
+    return 'KASIE_KEPESANTRENAN';
+  }
+  if (clean.includes('KOORDINATOR')) {
+    return 'KOORDINATOR';
+  }
+  if (clean.includes('MUSYRIF')) {
+    return 'MUSYRIF';
+  }
+  return 'MUSYRIF';
+}
+
+/**
+ * Normalizes unit string to standard 'ALL' | UnitPesantren
+ */
+export function mapUnit(unit?: string | null, role?: UserRole): 'ALL' | UnitPesantren {
+  if (role === 'KASIE_KEPESANTRENAN') {
+    return 'ALL';
+  }
+  if (!unit) return 'SMP';
+  const clean = unit.toUpperCase().trim();
+  if (clean === 'MA' || clean.includes('MA')) return 'MA';
+  if (clean === 'SMA' || clean.includes('SMA')) return 'SMA';
+  if (clean === 'SMP' || clean.includes('SMP')) return 'SMP';
+  return 'SMP';
+}
+
 /**
  * Verifies if a given user role has permission to access a specific page route.
  */
@@ -108,29 +246,34 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
 
   switch (role) {
     case 'MUSYRIF':
-      return (
-        route === 'data-santri' ||
-        route === 'catat-pelanggaran' ||
-        route === 'rekap-pelanggaran' ||
-        route === 'data-pelanggaran' ||
-        route === 'data-pembinaan' ||
-        route === 'riwayat-pembinaan'
-      );
-
-    case 'KOORDINATOR':
+      // Musyrif has Dashboard, Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master), Akun Saya
       return (
         route === 'dashboard' ||
         route === 'data-santri' ||
         route === 'catat-pelanggaran' ||
         route === 'rekap-pelanggaran' ||
         route === 'data-pelanggaran' ||
+        route === 'kamus-pelanggaran' ||
+        route === 'data-pembinaan' ||
+        route === 'riwayat-pembinaan'
+      );
+
+    case 'KOORDINATOR':
+      // Koordinator has Dashboard, Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master), Akun Saya
+      return (
+        route === 'dashboard' ||
+        route === 'data-santri' ||
+        route === 'catat-pelanggaran' ||
+        route === 'rekap-pelanggaran' ||
+        route === 'data-pelanggaran' ||
+        route === 'kamus-pelanggaran' ||
         route === 'data-pembinaan' ||
         route === 'riwayat-pembinaan' ||
         route === 'laporan-pembinaan'
       );
 
     case 'KASIE_KEPESANTRENAN':
-      // Superadmin can access everything
+      // Kasie / Superadmin can access all routes
       return true;
 
     default:
@@ -139,15 +282,9 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
 }
 
 /**
- * Returns default landing page for a role after successful login
+ * Returns default landing page for a role after successful login.
+ * All roles start on the Dashboard!
  */
-export function getDefaultRouteForRole(role: UserRole): PageRoute {
-  switch (role) {
-    case 'MUSYRIF':
-      return 'data-santri';
-    case 'KOORDINATOR':
-    case 'KASIE_KEPESANTRENAN':
-    default:
-      return 'dashboard';
-  }
+export function getDefaultRouteForRole(_role: UserRole): PageRoute {
+  return 'dashboard';
 }

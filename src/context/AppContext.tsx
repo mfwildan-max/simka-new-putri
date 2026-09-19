@@ -45,6 +45,9 @@ import {
   deleteUserFromDB,
   toggleUserActiveInDB,
   resetUserPasswordInDB,
+  importUsersBatchToDB,
+  ImportUserPayload,
+  ImportUsersResult,
   authenticateUser,
   isSupabaseConfigured,
   getActiveSupabaseConfig
@@ -170,16 +173,16 @@ interface AppContextType {
   ) => Promise<{ success: boolean; message?: string }>;
   resetUserPassword: (userId: string, newPassword: string) => Promise<{ success: boolean; message?: string }>;
   importUsersBatch: (
-    usersData: Array<{
-      id?: string;
-      nama: string;
-      username: string;
-      password: string;
-      email?: string;
-      role: UserRole;
-      unit: 'ALL' | UnitPesantren;
-    }>
-  ) => Promise<{ success: boolean; insertedCount: number; message: string }>;
+    usersData: ImportUserPayload[]
+  ) => Promise<{
+    success: boolean;
+    insertedCount: number;
+    duplicateCount?: number;
+    errorCount?: number;
+    totalRows?: number;
+    details?: string[];
+    message: string;
+  }>;
   deleteUser: (userId: string) => Promise<{ success: boolean; message?: string }>;
   toggleUserActive: (userId: string) => Promise<void>;
   // Santri Management
@@ -1133,63 +1136,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const importUsersBatch = async (
-    usersData: Array<{
-      id?: string;
-      nama: string;
-      username: string;
-      password: string;
-      email?: string;
-      role: UserRole;
-      unit: 'ALL' | UnitPesantren;
-    }>
-  ): Promise<{ success: boolean; insertedCount: number; message: string }> => {
+    usersData: ImportUserPayload[]
+  ): Promise<{
+    success: boolean;
+    insertedCount: number;
+    duplicateCount?: number;
+    errorCount?: number;
+    totalRows?: number;
+    details?: string[];
+    message: string;
+  }> => {
     if (!user || user.role !== 'KASIE_KEPESANTRENAN') {
-      return { success: false, insertedCount: 0, message: 'Hanya Kasie Kepesantrenan yang berwenang mengimpor akun pengguna.' };
+      const msg = 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang mengimpor akun pengguna.';
+      showToast('Akses Ditolak', msg, 'error');
+      return {
+        success: false,
+        insertedCount: 0,
+        duplicateCount: 0,
+        errorCount: usersData.length,
+        totalRows: usersData.length,
+        details: [msg],
+        message: msg
+      };
     }
 
     if (usersData.length === 0) {
-      return { success: false, insertedCount: 0, message: 'Tidak ada data valid yang dapat diimport.' };
+      const msg = 'Tidak ada data pengguna yang dipilih untuk diimport.';
+      showToast('Data Kosong', msg, 'warning');
+      return {
+        success: false,
+        insertedCount: 0,
+        duplicateCount: 0,
+        errorCount: 0,
+        totalRows: 0,
+        details: [msg],
+        message: msg
+      };
     }
 
-    let count = 0;
-    for (const item of usersData) {
-      const cleanUsername = item.username.trim().toLowerCase();
-      if (!cleanUsername || !item.password || !item.nama) continue;
-      const exists = usersList.some((u) => u.username.toLowerCase() === cleanUsername);
-      if (exists) continue;
+    const dbRes = await importUsersBatchToDB(usersData, user.role);
 
-      const password_hash = await hashPassword(item.password);
-      const assignedUnit = item.role === 'KASIE_KEPESANTRENAN' ? 'ALL' : item.unit;
-
-      const res = await insertUserToDB(
-        {
-          nama: item.nama.trim(),
-          username: cleanUsername,
-          password_hash,
-          role: item.role,
-          unit: assignedUnit,
-          is_active: true,
-          email: item.email?.trim() || `${cleanUsername}@simka.id`,
-          title: `${item.role} ${assignedUnit}`
-        },
-        user.role
-      );
-
-      if (res.success && res.data) {
-        setUsersList((prev) => [res.data!, ...prev]);
-        count++;
+    if (dbRes.insertedCount > 0) {
+      // Refresh single source of truth from database
+      const freshUsers = await fetchUsersFromDB();
+      if (freshUsers && freshUsers.length > 0) {
+        setUsersList(freshUsers);
       }
+      showToast(
+        'Import Pengguna Berhasil',
+        `Sebanyak ${dbRes.insertedCount} akun pengguna baru berhasil ditambahkan ke database.` +
+          (dbRes.duplicateCount > 0 ? ` (${dbRes.duplicateCount} duplikat diabaikan)` : ''),
+        'success'
+      );
+    } else {
+      showToast(
+        'Import Tidak Menambahkan Data',
+        dbRes.message || 'Semua akun yang diunggah sudah terdaftar atau gagal validasi.',
+        'warning'
+      );
     }
 
-    showToast(
-      'Import Pengguna Berhasil',
-      `Sebanyak ${count} akun pengguna baru berhasil ditambahkan ke database.`,
-      'success'
-    );
     return {
-      success: true,
-      insertedCount: count,
-      message: `${count} pengguna berhasil diimport.`
+      success: dbRes.insertedCount > 0,
+      insertedCount: dbRes.insertedCount,
+      duplicateCount: dbRes.duplicateCount,
+      errorCount: dbRes.errorCount,
+      totalRows: dbRes.totalRows,
+      details: dbRes.details,
+      message: dbRes.message
     };
   };
 

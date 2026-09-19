@@ -95,10 +95,12 @@ export const ImportUserModal: React.FC<ImportUserModalProps> = ({
       id: r.id,
       nama: r.nama,
       username: r.username,
-      password: r.password,
-      email: r.email,
+      password: r.passwordRaw || r.password,
+      passwordRaw: r.passwordRaw,
+      jabatan: r.jabatan,
       role: r.role,
-      unit: r.unit
+      unit: r.unit,
+      is_active: r.isActive
     }));
 
     const result = await importUsersBatch(payload);

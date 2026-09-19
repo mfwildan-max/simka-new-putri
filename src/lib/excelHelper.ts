@@ -45,14 +45,18 @@ export interface PelanggaranImportRow {
 
 export interface UserImportRow {
   rowNumber: number;
-  id: string;
+  id?: string;
   nama: string;
   username: string;
   passwordRaw: string;
-  email?: string;
+  password?: string;
+  jabatan: string;
   role: UserRole;
   unit: 'ALL' | UnitPesantren;
+  isActive: boolean;
+  email?: string;
   status: 'valid' | 'duplicate' | 'error';
+  warningMessage?: string;
   errorMessage?: string;
 }
 
@@ -378,56 +382,176 @@ export async function parsePelanggaranExcel(
 // ============================================================================
 
 /**
+ * Helper to test if a string is a valid UUID
+ */
+export function isValidUUID(str?: string | null): boolean {
+  if (!str) return false;
+  const clean = str.trim();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(clean);
+}
+
+/**
+ * Normalizes user jabatan from Excel into standard SIMKA role & database value
+ */
+export function normalizeUserJabatan(rawJabatan?: string | null): { jabatan: string; role: UserRole; warning?: string } {
+  if (!rawJabatan || !rawJabatan.trim()) {
+    return { jabatan: '', role: 'MUSYRIF' };
+  }
+  const clean = rawJabatan.toUpperCase().trim();
+  if (
+    clean.includes('KASIE') ||
+    clean.includes('KABID') ||
+    clean.includes('SUPERADMIN') ||
+    clean.includes('SUPER ADMIN') ||
+    clean.includes('KEPESANTRENAN') ||
+    clean === 'ADMIN'
+  ) {
+    return { jabatan: 'KASIE_KEPESANTRENAN', role: 'KASIE_KEPESANTRENAN' };
+  }
+  if (clean.includes('KOORDINATOR') || clean.includes('KOOR')) {
+    return { jabatan: 'KOORDINATOR', role: 'KOORDINATOR' };
+  }
+  if (
+    clean.includes('MUSYRIF') ||
+    clean.includes('PEMBINA') ||
+    clean.includes('PENGASUH') ||
+    clean.includes('USTADZ') ||
+    clean.includes('USTAD')
+  ) {
+    return { jabatan: 'MUSYRIF', role: 'MUSYRIF' };
+  }
+  return {
+    jabatan: clean,
+    role: 'MUSYRIF',
+    warning: `Jabatan "${rawJabatan}" tidak standar (disimpan sebagai ${clean})`
+  };
+}
+
+/**
+ * Normalizes user unit from Excel into standard SIMKA unit
+ */
+export function normalizeUserUnit(
+  rawUnit?: string | null,
+  roleOrJabatan?: string
+): 'ALL' | UnitPesantren | null {
+  const cleanJabatan = (roleOrJabatan || '').toUpperCase().trim();
+  if (
+    cleanJabatan === 'KASIE_KEPESANTRENAN' ||
+    cleanJabatan.includes('KASIE') ||
+    cleanJabatan.includes('KABID') ||
+    cleanJabatan.includes('SUPERADMIN')
+  ) {
+    return 'ALL';
+  }
+  if (!rawUnit || !rawUnit.trim()) {
+    return null;
+  }
+  const clean = rawUnit.toUpperCase().trim();
+  if (
+    clean === 'ALL' ||
+    clean === 'SEMUA' ||
+    clean.includes('SEMUA UNIT') ||
+    clean.includes('SELURUH UNIT') ||
+    clean === 'PUSAT' ||
+    clean === 'YAYASAN'
+  ) {
+    return 'ALL';
+  }
+  if (clean === 'SMP' || clean.includes('SMP')) return 'SMP';
+  if (clean === 'MA' || clean.includes('MA') || clean.includes('ALIYAH')) return 'MA';
+  if (clean === 'SMA' || clean.includes('SMA')) return 'SMA';
+  return null;
+}
+
+/**
+ * Normalizes active status boolean
+ */
+export function normalizeUserIsActive(rawStatus?: string | null): boolean {
+  if (rawStatus === undefined || rawStatus === null || rawStatus === '') return true;
+  const clean = String(rawStatus).toUpperCase().trim();
+  if (
+    clean === 'NONAKTIF' ||
+    clean === 'NON-AKTIF' ||
+    clean === 'NON AKTIF' ||
+    clean === 'FALSE' ||
+    clean === '0' ||
+    clean === 'TIDAK' ||
+    clean === 'INACTIVE' ||
+    clean === 'N' ||
+    clean === 'OFF'
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Generate and download template Excel for Users Import
- * Columns: | id | nama | username | password | email (opsional) | role | unit |
+ * Columns: | No | ID (Opsional) | Nama Lengkap | Username | Password | Jabatan / Role | Unit | Status |
  */
 export function generateUserExcelTemplate(): void {
   const headers = [
-    'id',
-    'nama',
-    'username',
-    'password',
-    'email (opsional)',
-    'role',
-    'unit'
+    'No',
+    'ID (Kosongkan jika baru)',
+    'Nama Lengkap',
+    'Username',
+    'Password',
+    'Jabatan',
+    'Unit',
+    'Status'
   ];
 
   const sampleRows = [
     [
-      'U001',
+      1,
+      '',
       'Ust. Ahmad Al-Haddad, S.Pd',
       'ahmad.musy',
       'ahmad123',
-      'ahmad@simka.id',
       'Musyrif',
-      'MA'
+      'MA',
+      'Aktif'
     ],
     [
-      'U002',
+      2,
+      '',
       'Ustzh. Fatimah Az-Zahra, S.Ag',
       'fatimah.musy',
       'fatimah123',
-      'fatimah@simka.id',
       'Musyrif',
-      'MA'
+      'SMP',
+      'Aktif'
     ],
     [
-      'U003',
+      3,
+      '',
       'Ust. Hasan Basri, M.Pd',
       'hasan.koor',
       'hasan123',
-      'hasan@simka.id',
       'Koordinator',
-      'SMP'
+      'SMP',
+      'Aktif'
     ],
     [
-      'U004',
-      'Ust. Fathurrahman Al-Makki',
+      4,
+      '',
+      'Ust. Fathurrahman, Lc',
       'fathur.sma',
       'sma123',
-      'fathur@simka.id',
       'Musyrif',
-      'SMA'
+      'SMA',
+      'Aktif'
+    ],
+    [
+      5,
+      '',
+      'Drs. H. M. Wildan, M.Ag',
+      'wildan.kasie',
+      'kasie123',
+      'Kasie Kepesantrenan',
+      'ALL',
+      'Aktif'
     ]
   ];
 
@@ -435,13 +559,14 @@ export function generateUserExcelTemplate(): void {
   const ws = utils.aoa_to_sheet(wsData);
 
   ws['!cols'] = [
-    { wch: 10 }, // ID
-    { wch: 32 }, // Nama
+    { wch: 6 },  // No
+    { wch: 28 }, // ID (UUID)
+    { wch: 32 }, // Nama Lengkap
     { wch: 20 }, // Username
     { wch: 18 }, // Password
-    { wch: 26 }, // Email
-    { wch: 22 }, // Role
-    { wch: 10 }  // Unit
+    { wch: 24 }, // Jabatan
+    { wch: 12 }, // Unit
+    { wch: 12 }  // Status
   ];
 
   const wb = utils.book_new();
@@ -470,8 +595,7 @@ export function exportUsersToExcel(
     'ID',
     'Nama Lengkap',
     'Username',
-    'Email',
-    'Role',
+    'Jabatan / Role',
     'Unit',
     'Status'
   ];
@@ -480,7 +604,6 @@ export function exportUsersToExcel(
     u.id,
     u.nama,
     u.username,
-    u.email || '-',
     u.role,
     u.unit,
     u.is_active ? 'Aktif' : 'Nonaktif'
@@ -490,10 +613,9 @@ export function exportUsersToExcel(
   const ws = utils.aoa_to_sheet(wsData);
 
   ws['!cols'] = [
-    { wch: 16 },
+    { wch: 38 },
     { wch: 34 },
     { wch: 20 },
-    { wch: 26 },
     { wch: 24 },
     { wch: 12 },
     { wch: 12 }
@@ -515,7 +637,7 @@ export function exportUsersToExcel(
 }
 
 /**
- * Parse and validate Excel file for Users Import
+ * Parse and validate Excel/CSV file for Users Import
  */
 export async function parseUsersExcel(
   file: File,
@@ -527,170 +649,213 @@ export async function parseUsersExcel(
   errorCount: number;
 }> {
   const buffer = await file.arrayBuffer();
-  const workbook = read(buffer, { type: 'array' });
+  const workbook = read(buffer, { type: 'array', raw: false });
   const firstSheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[firstSheetName];
-  const rawJson: any[][] = utils.sheet_to_json(worksheet, { header: 1 });
+  const rawJson: any[][] = utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
   if (rawJson.length < 2) {
-    throw new Error('File Excel kosong atau tidak memiliki baris data.');
+    throw new Error('File Excel/CSV kosong atau tidak memiliki baris data.');
   }
 
-  const headerRow = rawJson[0].map((h: any) => String(h || '').trim().toLowerCase());
+  // Find the header row (support leading title banner rows)
+  let headerRowIndex = 0;
+  for (let r = 0; r < Math.min(rawJson.length, 6); r++) {
+    const rowStr = (rawJson[r] || [])
+      .map((c: any) => String(c || '').toLowerCase().trim())
+      .join(' ');
+    if (
+      rowStr.includes('nama') ||
+      rowStr.includes('username') ||
+      rowStr.includes('jabatan') ||
+      rowStr.includes('role') ||
+      rowStr.includes('password') ||
+      rowStr.includes('unit')
+    ) {
+      headerRowIndex = r;
+      break;
+    }
+  }
 
-  let colId = headerRow.findIndex((h) => h === 'id' || h.includes('id '));
-  let colNama = headerRow.findIndex((h) => h.includes('nama'));
-  let colUsername = headerRow.findIndex((h) => h.includes('username') || h.includes('user'));
-  let colPassword = headerRow.findIndex((h) => h.includes('password') || h.includes('sandi') || h.includes('pass'));
-  let colEmail = headerRow.findIndex((h) => h.includes('email') || h.includes('mail'));
-  let colRole = headerRow.findIndex((h) => h.includes('role') || h.includes('peran') || h.includes('jabatan'));
-  let colUnit = headerRow.findIndex((h) => h.includes('unit') || h.includes('jenjang'));
+  const rawHeaders = rawJson[headerRowIndex] || [];
+  const normalizedHeaders = rawHeaders.map((h: any) =>
+    String(h || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_\-]+/g, ' ')
+  );
 
-  if (colId === -1) colId = 0;
-  if (colNama === -1) colNama = 1;
-  if (colUsername === -1) colUsername = 2;
-  if (colPassword === -1) colPassword = 3;
-  if (colEmail === -1) colEmail = 4;
-  if (colRole === -1) colRole = 5;
-  if (colUnit === -1) colUnit = 6;
+  const findCol = (keywords: string[]): number => {
+    for (const kw of keywords) {
+      const idx = normalizedHeaders.findIndex((h: string) => h === kw || h.includes(kw));
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  };
+
+  let colId = findCol(['id pengguna', 'id user', 'kode', 'user id', 'id']);
+  let colNama = findCol(['nama lengkap', 'nama & gelar', 'nama gelar', 'full name', 'nama']);
+  let colUsername = findCol(['username', 'nama user', 'id akun', 'akun', 'login', 'user']);
+  let colPassword = findCol(['password', 'kata sandi', 'sandi', 'pass', 'pwd']);
+  let colJabatan = findCol(['jabatan', 'role', 'peran', 'posisi', 'tingkat']);
+  let colUnit = findCol(['unit pesantren', 'jenjang', 'unit', 'lembaga', 'sekolah']);
+  let colStatus = findCol(['status akun', 'status', 'aktif', 'is active', 'active']);
+  let colEmail = findCol(['email', 'mail']);
+
+  // Position-based fallbacks if headers couldn't be detected
+  if (colNama === -1 && colUsername === -1) {
+    colId = 1;
+    colNama = 2;
+    colUsername = 3;
+    colPassword = 4;
+    colJabatan = 5;
+    colUnit = 6;
+  }
 
   const existingUsernameSet = new Set(
     existingUsers.map((u) => u.username.trim().toLowerCase())
-  );
-  const existingIdSet = new Set(
-    existingUsers.map((u) => u.id.trim().toLowerCase())
   );
   const seenUsernameBatch = new Set<string>();
 
   const parsedRows: UserImportRow[] = [];
 
-  for (let i = 1; i < rawJson.length; i++) {
+  for (let i = headerRowIndex + 1; i < rawJson.length; i++) {
     const row = rawJson[i];
     if (!row || row.length === 0 || row.every((c: any) => c === undefined || c === null || String(c).trim() === '')) {
       continue;
     }
 
-    const rawId = colId !== -1 && row[colId] ? String(row[colId]).trim() : `U${String(i).padStart(3, '0')}`;
-    const rawNama = row[colNama] !== undefined ? String(row[colNama]).trim() : '';
-    const rawUsername = row[colUsername] !== undefined ? String(row[colUsername]).trim().toLowerCase() : '';
-    const rawPassword = row[colPassword] !== undefined ? String(row[colPassword]).trim() : '';
+    const rawId = colId !== -1 && row[colId] ? String(row[colId]).trim() : '';
+    const rawNama = colNama !== -1 && row[colNama] !== undefined ? String(row[colNama]).trim() : '';
+    const rawUsername = colUsername !== -1 && row[colUsername] !== undefined ? String(row[colUsername]).trim().toLowerCase() : '';
+    const rawPassword = colPassword !== -1 && row[colPassword] !== undefined ? String(row[colPassword]).trim() : '';
+    const rawJabatan = colJabatan !== -1 && row[colJabatan] !== undefined ? String(row[colJabatan]).trim() : '';
+    const rawUnit = colUnit !== -1 && row[colUnit] !== undefined ? String(row[colUnit]).trim() : '';
+    const rawStatus = colStatus !== -1 && row[colStatus] !== undefined ? String(row[colStatus]).trim() : '';
     const rawEmail = colEmail !== -1 && row[colEmail] !== undefined ? String(row[colEmail]).trim() : '';
-    const rawRole = row[colRole] !== undefined ? String(row[colRole]).trim() : '';
-    const rawUnit = row[colUnit] !== undefined ? String(row[colUnit]).trim().toUpperCase() : '';
 
-    // Required fields check
+    const isActive = normalizeUserIsActive(rawStatus);
+
+    // 1. Required: Nama
     if (!rawNama) {
       parsedRows.push({
         rowNumber: i + 1,
-        id: rawId,
+        id: rawId || undefined,
         nama: '(Kosong)',
         username: rawUsername || '-',
-        passwordRaw: '',
-        email: rawEmail,
+        passwordRaw: rawPassword || '',
+        password: rawPassword || '',
+        jabatan: rawJabatan || 'MUSYRIF',
         role: 'MUSYRIF',
         unit: 'SMP',
+        isActive,
+        email: rawEmail,
         status: 'error',
-        errorMessage: 'Nama pengguna wajib diisi.'
+        errorMessage: 'Nama lengkap pengguna wajib diisi.'
       });
       continue;
     }
 
+    // 2. Required: Username
     if (!rawUsername) {
       parsedRows.push({
         rowNumber: i + 1,
-        id: rawId,
+        id: rawId || undefined,
         nama: rawNama,
         username: '(Kosong)',
-        passwordRaw: '',
-        email: rawEmail,
+        passwordRaw: rawPassword || '',
+        password: rawPassword || '',
+        jabatan: rawJabatan || 'MUSYRIF',
         role: 'MUSYRIF',
         unit: 'SMP',
+        isActive,
+        email: rawEmail,
         status: 'error',
         errorMessage: 'Username wajib diisi.'
       });
       continue;
     }
 
-    if (!rawPassword || rawPassword.length < 6) {
+    // 3. Required: Password
+    if (!rawPassword) {
       parsedRows.push({
         rowNumber: i + 1,
-        id: rawId,
+        id: rawId || undefined,
         nama: rawNama,
         username: rawUsername,
         passwordRaw: '',
-        email: rawEmail,
+        password: '',
+        jabatan: rawJabatan || 'MUSYRIF',
         role: 'MUSYRIF',
         unit: 'SMP',
+        isActive,
+        email: rawEmail,
         status: 'error',
-        errorMessage: 'Password wajib diisi minimal 6 karakter.'
+        errorMessage: 'Password wajib diisi.'
       });
       continue;
     }
 
-    // Role mapping
-    let resolvedRole: UserRole | null = null;
-    const cleanRoleStr = rawRole.toUpperCase().replace(/\s+/g, '_');
-    if (cleanRoleStr.includes('MUSYRIF')) {
-      resolvedRole = 'MUSYRIF';
-    } else if (cleanRoleStr.includes('KOORDINATOR')) {
-      resolvedRole = 'KOORDINATOR';
-    } else if (cleanRoleStr.includes('KASIE') || cleanRoleStr.includes('KABID') || cleanRoleStr.includes('SUPERADMIN')) {
-      resolvedRole = 'KASIE_KEPESANTRENAN';
-    }
-
-    if (!resolvedRole) {
+    // 4. Required: Jabatan
+    if (!rawJabatan) {
       parsedRows.push({
         rowNumber: i + 1,
-        id: rawId,
+        id: rawId || undefined,
         nama: rawNama,
         username: rawUsername,
         passwordRaw: rawPassword,
-        email: rawEmail,
+        password: rawPassword,
+        jabatan: '',
         role: 'MUSYRIF',
         unit: 'SMP',
+        isActive,
+        email: rawEmail,
         status: 'error',
-        errorMessage: `Role tidak valid ("${rawRole}"). Pilih Musyrif, Koordinator, atau Kasie Kepesantrenan.`
+        errorMessage: 'Jabatan / Role wajib diisi (Pilih Musyrif, Koordinator, atau Kasie Kepesantrenan).'
       });
       continue;
     }
 
-    // Unit validation based on role
-    let resolvedUnit: 'ALL' | UnitPesantren = 'ALL';
-    if (resolvedRole === 'KASIE_KEPESANTRENAN') {
-      resolvedUnit = 'ALL';
-    } else {
-      if (rawUnit === 'SMP' || rawUnit === 'MA' || rawUnit === 'SMA') {
-        resolvedUnit = rawUnit as UnitPesantren;
-      } else {
-        parsedRows.push({
-          rowNumber: i + 1,
-          id: rawId,
-          nama: rawNama,
-          username: rawUsername,
-          passwordRaw: rawPassword,
-          email: rawEmail,
-          role: resolvedRole,
-          unit: 'SMP',
-          status: 'error',
-          errorMessage: `Unit untuk role ${resolvedRole} harus salah satu: SMP, MA, atau SMA (terisi: "${rawUnit}").`
-        });
-        continue;
-      }
+    // Resolve Role & Jabatan mapping
+    const { jabatan: resolvedJabatan, role: resolvedRole, warning: jabatanWarning } = normalizeUserJabatan(rawJabatan);
+
+    // Resolve Unit
+    const resolvedUnit = normalizeUserUnit(rawUnit, resolvedJabatan);
+    if (!resolvedUnit) {
+      parsedRows.push({
+        rowNumber: i + 1,
+        id: rawId || undefined,
+        nama: rawNama,
+        username: rawUsername,
+        passwordRaw: rawPassword,
+        password: rawPassword,
+        jabatan: resolvedJabatan,
+        role: resolvedRole,
+        unit: 'SMP',
+        isActive,
+        email: rawEmail,
+        status: 'error',
+        errorMessage: `Unit wajib diisi untuk ${resolvedJabatan} (Pilih SMP, MA, atau SMA, terisi: "${rawUnit || '-'}").`
+      });
+      continue;
     }
 
-    // Uniqueness & duplication check
+    // 5. Check Duplicate Username
     if (existingUsernameSet.has(rawUsername) || seenUsernameBatch.has(rawUsername)) {
       parsedRows.push({
         rowNumber: i + 1,
-        id: rawId,
+        id: isValidUUID(rawId) ? rawId : undefined,
         nama: rawNama,
         username: rawUsername,
         passwordRaw: rawPassword,
-        email: rawEmail,
+        password: rawPassword,
+        jabatan: resolvedJabatan,
         role: resolvedRole,
         unit: resolvedUnit,
+        isActive,
+        email: rawEmail,
         status: 'duplicate',
-        errorMessage: `Username "@${rawUsername}" sudah digunakan di sistem.`
+        errorMessage: `Username "@${rawUsername}" sudah terdaftar di sistem.`
       });
       continue;
     }
@@ -699,14 +864,18 @@ export async function parseUsersExcel(
 
     parsedRows.push({
       rowNumber: i + 1,
-      id: rawId || `U${String(existingUsers.length + parsedRows.length + 1).padStart(3, '0')}`,
+      id: isValidUUID(rawId) ? rawId : undefined,
       nama: rawNama,
       username: rawUsername,
       passwordRaw: rawPassword,
-      email: rawEmail || `${rawUsername}@simka.id`,
+      password: rawPassword,
+      jabatan: resolvedJabatan,
       role: resolvedRole,
       unit: resolvedUnit,
-      status: 'valid'
+      isActive,
+      email: rawEmail || `${rawUsername}@simka.id`,
+      status: 'valid',
+      warningMessage: jabatanWarning
     });
   }
 

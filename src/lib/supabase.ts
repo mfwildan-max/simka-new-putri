@@ -527,6 +527,244 @@ export async function insertUserToDB(
   }
 }
 
+export interface ImportUserPayload {
+  id?: string;
+  nama: string;
+  username: string;
+  password?: string;
+  passwordRaw?: string;
+  jabatan?: string;
+  role?: UserRole;
+  unit?: 'ALL' | UnitPesantren | string;
+  is_active?: boolean;
+}
+
+export interface ImportUsersResult {
+  success: boolean;
+  totalRows: number;
+  insertedCount: number;
+  duplicateCount: number;
+  errorCount: number;
+  details: string[];
+  message: string;
+  error?: string;
+}
+
+/**
+ * Batch insert users directly into Supabase public.users table.
+ * Strictly maps schema: id (UUID if valid), nama, username, password, jabatan, unit, is_active.
+ */
+export async function importUsersBatchToDB(
+  userItems: ImportUserPayload[],
+  actorRole?: UserRole
+): Promise<ImportUsersResult> {
+  if (actorRole !== 'KASIE_KEPESANTRENAN') {
+    return {
+      success: false,
+      totalRows: userItems.length,
+      insertedCount: 0,
+      duplicateCount: 0,
+      errorCount: userItems.length,
+      details: ['Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang mengimpor akun pengguna.'],
+      message: 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang mengimpor akun pengguna.',
+      error: 'Unauthorized'
+    };
+  }
+
+  if (userItems.length === 0) {
+    return {
+      success: false,
+      totalRows: 0,
+      insertedCount: 0,
+      duplicateCount: 0,
+      errorCount: 0,
+      details: ['Tidak ada data pengguna yang dipilih untuk diimport.'],
+      message: 'Import tidak menambahkan data karena tidak ada baris data valid yang dikirim.'
+    };
+  }
+
+  const details: string[] = [];
+  let duplicateCount = 0;
+  let errorCount = 0;
+  let insertedCount = 0;
+
+  if (!isSupabaseConfigured()) {
+    // Local / Offline fallback
+    for (let i = 0; i < userItems.length; i++) {
+      const item = userItems[i];
+      const cleanUsername = (item.username || '').toLowerCase().trim();
+      const rawPwd = item.passwordRaw || item.password;
+      if (!cleanUsername || !item.nama || !rawPwd) {
+        errorCount++;
+        details.push(`Baris ${i + 1}: Data wajib (nama/username/password) belum lengkap.`);
+        continue;
+      }
+      insertedCount++;
+    }
+    return {
+      success: insertedCount > 0,
+      totalRows: userItems.length,
+      insertedCount,
+      duplicateCount,
+      errorCount,
+      details,
+      message: insertedCount > 0
+        ? `Sebanyak ${insertedCount} akun pengguna berhasil ditambahkan (Mode Lokal).`
+        : 'Import tidak menambahkan data.'
+    };
+  }
+
+  try {
+    // 1. Fetch live existing usernames from Supabase to guarantee uniqueness
+    const { data: existingRows, error: checkError } = await supabase
+      .from('users')
+      .select('username');
+
+    if (checkError) {
+      console.error('[IMPORT USERS] Check existing users error:', checkError);
+    }
+
+    const existingUsernameSet = new Set<string>(
+      (existingRows || []).map((r: any) => String(r.username || '').toLowerCase().trim())
+    );
+    const seenInBatch = new Set<string>();
+
+    const rowsToInsert: Array<{
+      id?: string;
+      nama: string;
+      username: string;
+      password: string;
+      jabatan: string;
+      unit: string;
+      is_active: boolean;
+    }> = [];
+
+    for (let i = 0; i < userItems.length; i++) {
+      const item = userItems[i];
+      const cleanUsername = (item.username || '').toLowerCase().trim();
+      const rawPwd = item.passwordRaw || item.password;
+
+      // Validation check
+      if (!cleanUsername || !item.nama || !rawPwd) {
+        errorCount++;
+        details.push(`Baris ${i + 1}: Data wajib (nama/username/password) tidak lengkap.`);
+        continue;
+      }
+
+      // Check duplicates
+      if (existingUsernameSet.has(cleanUsername) || seenInBatch.has(cleanUsername)) {
+        duplicateCount++;
+        details.push(`Baris ${i + 1}: Username @${cleanUsername} sudah terdaftar di database.`);
+        continue;
+      }
+
+      seenInBatch.add(cleanUsername);
+
+      const role = (item.role || mapJabatanToRole(item.jabatan)) as UserRole;
+      const unit = mapUnit(item.unit, role);
+      const jabatanToSave = item.jabatan?.trim() || role;
+      const hashedPassword = await hashPassword(rawPwd);
+
+      const dbPayload: any = {
+        nama: item.nama.trim(),
+        username: cleanUsername,
+        password: hashedPassword,
+        jabatan: jabatanToSave,
+        unit: unit,
+        is_active: item.is_active !== false
+      };
+
+      if (isValidUUID(item.id)) {
+        dbPayload.id = item.id!.trim();
+      }
+
+      rowsToInsert.push(dbPayload);
+    }
+
+    if (rowsToInsert.length === 0) {
+      return {
+        success: false,
+        totalRows: userItems.length,
+        insertedCount: 0,
+        duplicateCount,
+        errorCount,
+        details,
+        message: duplicateCount > 0
+          ? `Import tidak menambahkan data karena seluruh (${duplicateCount}) username sudah terdaftar.`
+          : 'Import tidak menambahkan data karena tidak ada baris yang valid.'
+      };
+    }
+
+    // 2. Perform insert into Supabase public.users
+    const { data: insertedData, error: insertError } = await supabase
+      .from('users')
+      .insert(rowsToInsert)
+      .select('id, nama, username, jabatan, unit, is_active, created_at');
+
+    if (insertError) {
+      console.error('[IMPORT USERS]', insertError);
+
+      // If batch fails (e.g. partial duplicate or schema issue), attempt row-by-row fallback
+      let fallbackSuccessCount = 0;
+      for (const singleRow of rowsToInsert) {
+        try {
+          const { error: singleErr } = await supabase
+            .from('users')
+            .insert([singleRow]);
+          if (!singleErr) {
+            fallbackSuccessCount++;
+          } else {
+            console.error('[IMPORT USERS] Single row insert failed for @' + singleRow.username + ':', singleErr);
+            errorCount++;
+            details.push(`Username @${singleRow.username}: ${singleErr.message || 'Gagal disimpan'}`);
+          }
+        } catch (err: any) {
+          errorCount++;
+          details.push(`Username @${singleRow.username}: ${err?.message || 'Gagal disimpan'}`);
+        }
+      }
+
+      insertedCount = fallbackSuccessCount;
+      if (insertedCount === 0) {
+        return {
+          success: false,
+          totalRows: userItems.length,
+          insertedCount: 0,
+          duplicateCount,
+          errorCount: userItems.length,
+          details,
+          message: `Import gagal: ${insertError.message || 'Terjadi kesalahan saat menyimpan ke Supabase.'}`,
+          error: insertError.message
+        };
+      }
+    } else {
+      insertedCount = insertedData?.length || rowsToInsert.length;
+    }
+
+    return {
+      success: insertedCount > 0,
+      totalRows: userItems.length,
+      insertedCount,
+      duplicateCount,
+      errorCount,
+      details,
+      message: `Sebanyak ${insertedCount} akun pengguna baru berhasil ditambahkan ke database.`
+    };
+  } catch (err: any) {
+    console.error('[IMPORT USERS]', err);
+    return {
+      success: false,
+      totalRows: userItems.length,
+      insertedCount: 0,
+      duplicateCount,
+      errorCount: userItems.length,
+      details: [`Exception: ${err?.message || 'Terjadi error tidak terduga saat proses import.'}`],
+      message: `Import gagal: ${err?.message || 'Terjadi kesalahan saat import pengguna.'}`,
+      error: err?.message
+    };
+  }
+}
+
 export async function updateUserInDB(
   userId: string,
   userItem: {

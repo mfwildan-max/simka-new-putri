@@ -348,10 +348,11 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
     }
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 3.0;
+  // Spacing proporsional setelah tabel mutaba'ah: ~8.5 mm (~24-30px)
+  currentY = (doc as any).lastAutoTable.finalY + 8.5;
 
   // ============================================================
-  // 6. AREA TANDA TANGAN 4 KOLOM SEIMBANG (REVISI KHUSUS)
+  // 6. AREA TANDA TANGAN 4 KOLOM SEIMBANG (REVISI FINAL)
   // ============================================================
   const sigColWidth = contentWidth / 4;
   const colCenters = [
@@ -364,7 +365,7 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
   const maxSigTextWidth = sigColWidth - 3.5; // ~42mm
 
   // Cek apakah posisi Y aman dari batas bawah A4
-  const estimatedSigHeight = 35; // mm
+  const estimatedSigHeight = 32; // mm
   if (currentY + estimatedSigHeight > pageHeight - 10) {
     currentY = pageHeight - estimatedSigHeight - 10;
   }
@@ -404,24 +405,13 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
   doc.setFontSize(8.5);
   doc.text(`Koordinator Unit ${officers.unitName}`, colCenters[3], roleLabelY, { align: 'center' });
 
-  // --- RUANG KOSONG TANDA TANGAN (± 35–45 pt / ~13–15 mm) ---
-  const ttdGapMm = 14.0;
+  // --- RUANG KOSONG TANDA TANGAN (± 13.5 mm) ---
+  const ttdGapMm = 13.5;
   const nameStartY = roleLabelY + ttdGapMm;
 
   // --- NAMA-NAMA PEJABAT / SANTRI (ADAPTIF, WRAP 2 BARIS, CENTER) ---
   // Kolom 1: Santri
   const santriSig = getAdaptiveWrappedText(doc, santri.nama.toUpperCase(), maxSigTextWidth, {
-    initialFontSize: 8.8,
-    minFontSize: 7.2,
-    fontName: 'times',
-    fontStyle: 'bold',
-    maxLines: 2,
-    lineHeightFactor: 1.2
-  });
-
-  // Kolom 2: Orang Tua / Wali
-  const waliNamaText = 'Orang Tua / Wali Santri';
-  const waliSig = getAdaptiveWrappedText(doc, waliNamaText, maxSigTextWidth, {
     initialFontSize: 8.8,
     minFontSize: 7.2,
     fontName: 'times',
@@ -460,15 +450,11 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
     yS += santriSig.lineHeightMm;
   });
 
-  // Render Kolom 2: Nama Orang Tua / Wali (Center)
+  // Render Kolom 2: Titik-titik Orang Tua / Wali (Center)
   doc.setFont('times', 'bold');
-  doc.setFontSize(waliSig.fontSize);
+  doc.setFontSize(8.8);
   doc.setTextColor(15, 23, 42);
-  let yW = nameStartY;
-  waliSig.lines.forEach((line) => {
-    doc.text(line, colCenters[1], yW, { align: 'center' });
-    yW += waliSig.lineHeightMm;
-  });
+  doc.text('..........................', colCenters[1], nameStartY, { align: 'center' });
 
   // Render Kolom 3: Nama Musyrif (Center)
   doc.setFont('times', 'bold');
@@ -489,25 +475,6 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
     doc.text(line, colCenters[3], yK, { align: 'center' });
     yK += koordinatorSig.lineHeightMm;
   });
-
-  // --- KETERANGAN "(Nama & Paraf)" (DINAMIS DI BAWAH NAMA) ---
-  // Jarak vertikal rapi ± 4-6 pt (1.6 - 2.0 mm) di bawah nama tertinggi
-  const maxNameHeightMm = Math.max(
-    santriSig.totalHeightMm,
-    waliSig.totalHeightMm,
-    musyrifSig.totalHeightMm,
-    koordinatorSig.totalHeightMm
-  );
-
-  const subtitleY = nameStartY + maxNameHeightMm + 1.8;
-
-  doc.setFont('times', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 116, 139); // Slate 500
-  doc.text('(Nama & Paraf)', colCenters[0], subtitleY, { align: 'center' });
-  doc.text('(Nama & Paraf)', colCenters[1], subtitleY, { align: 'center' });
-  doc.text('(Nama & Paraf)', colCenters[2], subtitleY, { align: 'center' });
-  doc.text('(Nama & Paraf)', colCenters[3], subtitleY, { align: 'center' });
 
   // Simpan dan Unduh File PDF
   const sanitizedName = santri.nama.replace(/[\\/:*?"<>|]/g, '').trim() || 'Santri';

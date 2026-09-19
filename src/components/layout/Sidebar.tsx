@@ -33,6 +33,7 @@ interface NavSection {
     label: string;
     icon: React.ElementType;
     badgeCount?: number;
+    badgeText?: string;
   }[];
 }
 
@@ -48,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Sidebar Structure strictly matching USER_REQUEST:
   // DASHBOARD: Dashboard
-  // PELANGGARAN: Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master)
+  // PELANGGARAN: Catat Pelanggaran, Rekap Pelanggaran, Data Santri, Data Pelanggaran (Master), Input Mutaba'ah (Coming Soon)
   // PENGATURAN: Manajemen Pengguna, Akun Saya
   const navSections: NavSection[] = [
     {
@@ -65,6 +66,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       groupTitle: 'PELANGGARAN',
       items: [
         {
+          route: 'catat-pelanggaran',
+          label: 'Catat Pelanggaran',
+          icon: ClipboardEdit
+        },
+        {
           route: 'rekap-pelanggaran',
           label: 'Rekap Pelanggaran',
           icon: Table2,
@@ -76,19 +82,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Users
         },
         {
-          route: 'catat-pelanggaran',
-          label: 'Catat Pelanggaran',
-          icon: ClipboardEdit
+          route: 'data-pelanggaran',
+          label: 'Data Pelanggaran (Master)',
+          icon: BookOpen
         },
         {
           route: 'input-mutabaah',
           label: "Input Mutaba'ah",
-          icon: FileCheck2
-        },
-        {
-          route: 'data-pelanggaran',
-          label: 'Data Pelanggaran (Master)',
-          icon: BookOpen
+          icon: FileCheck2,
+          badgeText: 'Coming Soon'
         }
       ]
     },
@@ -242,6 +244,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         />
                         {!isCollapsed && <span className="truncate">{item.label}</span>}
                       </div>
+
+                      {!isCollapsed && item.badgeText && (
+                        <span className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-amber-500/15 dark:bg-amber-400/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0 ml-1">
+                          {item.badgeText}
+                        </span>
+                      )}
 
                       {!isCollapsed && item.badgeCount !== undefined && item.badgeCount > 0 && (
                         <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white leading-none">

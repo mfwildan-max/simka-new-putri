@@ -182,10 +182,10 @@ export const FormPembinaanModal: React.FC<FormPembinaanModalProps> = ({
 
         {/* Modal Body: Scrollable Paper Preview */}
         <div className="overflow-y-auto p-2 sm:p-6 bg-[#070D18] flex flex-col items-center">
-          {/* HALAMAN UTAMA A4 RESMI (210mm x 297mm ratio, 794px x 1123px) */}
+          {/* HALAMAN UTAMA A4 RESMI (210mm x 297mm ratio, max-w-[794px]) */}
           <div
             id="printable-form-pembinaan-page-1"
-            className="form-pembinaan-a4-page w-full max-w-[794px] min-h-[1123px] bg-white text-slate-900 px-6 sm:px-8 py-6 sm:py-7 font-serif shadow-2xl rounded-sm flex flex-col justify-between box-border print:m-0 print:p-0 print:shadow-none print:max-w-none print:w-full print:rounded-none print:min-h-0"
+            className="form-pembinaan-a4-page w-full max-w-[794px] bg-white text-slate-900 px-6 sm:px-8 py-6 sm:py-7 font-serif shadow-2xl rounded-sm box-border print:m-0 print:p-0 print:shadow-none print:max-w-none print:w-full print:rounded-none"
             style={{
               fontFamily: "'Times New Roman', Times, serif",
               lineHeight: 1.25,
@@ -362,64 +362,62 @@ export const FormPembinaanModal: React.FC<FormPembinaanModalProps> = ({
               </div>
             </div>
 
-            {/* BAGIAN BAWAH: TANDA TANGAN 4 KOLOM DENGAN RUANG LEGA UNTUK TTD/PARAF MANUAL */}
-            <div className="pt-2 mt-auto">
-              <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
+            {/* BAGIAN BAWAH: TANDA TANGAN 4 KOLOM DENGAN SPACING PROPORSIONAL (~24-30px) */}
+            <div className="mt-6 sm:mt-7 pt-2">
+              <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
                 {/* 1. Santri */}
-                <div className={`flex flex-col justify-between ${signatureBoxHeightClass}`}>
-                  <div className="flex flex-col items-center justify-end min-h-[38px]">
-                    <p className="font-bold text-[10.5px]">Santri</p>
+                <div className="flex flex-col justify-between min-h-[95px]">
+                  <div className="flex flex-col items-center justify-end min-h-[42px]">
+                    <p className="font-bold text-[10.5px] sm:text-[11px] text-slate-900">Santri</p>
                   </div>
-                  <div className={signatureGapHeightClass} />
+                  <div className="h-11 sm:h-12" />
                   <div>
-                    <p className="font-bold uppercase text-[10px] break-words line-clamp-2 leading-tight">
+                    <p className="font-bold uppercase text-[10px] sm:text-[10.5px] text-slate-900 break-words leading-tight px-0.5">
                       {santri.nama}
                     </p>
-                    <p className="text-[9px] text-slate-500 mt-1">(Nama &amp; Paraf)</p>
                   </div>
                 </div>
 
                 {/* 2. Orang Tua / Wali */}
-                <div className={`flex flex-col justify-between ${signatureBoxHeightClass}`}>
-                  <div className="flex flex-col items-center justify-end min-h-[38px]">
-                    <p className="font-bold text-[10.5px]">Orang Tua / Wali</p>
+                <div className="flex flex-col justify-between min-h-[95px]">
+                  <div className="flex flex-col items-center justify-end min-h-[42px]">
+                    <p className="font-bold text-[10.5px] sm:text-[11px] text-slate-900">Orang Tua / Wali</p>
                   </div>
-                  <div className={signatureGapHeightClass} />
+                  <div className="h-11 sm:h-12" />
                   <div>
-                    <p className="font-bold text-[10px] text-slate-800 leading-tight">
-                      Orang Tua / Wali Santri
+                    <p className="font-bold text-[10.5px] sm:text-[11px] text-slate-900 tracking-wider">
+                      ..........................
                     </p>
-                    <p className="text-[9px] text-slate-500 mt-1">(Nama &amp; Paraf)</p>
                   </div>
                 </div>
 
                 {/* 3. Musyrif / Musyrifah */}
-                <div className={`flex flex-col justify-between ${signatureBoxHeightClass}`}>
-                  <div className="flex flex-col items-center justify-end min-h-[38px]">
-                    <p className="font-bold text-[10.5px]">Musyrif / Musyrifah</p>
+                <div className="flex flex-col justify-between min-h-[95px]">
+                  <div className="flex flex-col items-center justify-end min-h-[42px]">
+                    <p className="font-bold text-[10.5px] sm:text-[11px] text-slate-900">Musyrif / Musyrifah</p>
                   </div>
-                  <div className={signatureGapHeightClass} />
+                  <div className="h-11 sm:h-12" />
                   <div>
-                    <p className="font-bold text-[10px] break-words line-clamp-2 leading-tight text-slate-900">
+                    <p className="font-bold text-[10px] sm:text-[10.5px] text-slate-900 break-words leading-tight px-0.5">
                       {officers.musyrifNama}
                     </p>
-                    <p className="text-[9px] text-slate-500 mt-1">(Nama &amp; Paraf)</p>
                   </div>
                 </div>
 
                 {/* 4. Koordinator Unit */}
-                <div className={`flex flex-col justify-between ${signatureBoxHeightClass}`}>
-                  <div className="flex flex-col items-center justify-end min-h-[38px] text-[9.5px]">
-                    <p className="text-[9px] text-slate-700">{officers.kotaTanggal}</p>
-                    <p className="text-[9px] font-normal">Mengetahui,</p>
-                    <p className="font-bold leading-tight text-[10px]">Koordinator Unit {officers.unitName}</p>
+                <div className="flex flex-col justify-between min-h-[95px]">
+                  <div className="flex flex-col items-center justify-end min-h-[42px] text-[9.5px]">
+                    <p className="text-[9.5px] text-slate-700 leading-tight">{officers.kotaTanggal}</p>
+                    <p className="text-[9px] font-normal leading-tight">Mengetahui,</p>
+                    <p className="font-bold text-[10px] sm:text-[10.5px] text-slate-900 leading-tight">
+                      Koordinator Unit {officers.unitName}
+                    </p>
                   </div>
-                  <div className={signatureGapHeightClass} />
+                  <div className="h-11 sm:h-12" />
                   <div>
-                    <p className="font-bold text-[10px] break-words line-clamp-2 leading-tight text-slate-900">
+                    <p className="font-bold text-[10px] sm:text-[10.5px] text-slate-900 break-words leading-tight px-0.5">
                       {officers.koordinatorNama}
                     </p>
-                    <p className="text-[9px] text-slate-500 mt-1">(Nama &amp; Paraf)</p>
                   </div>
                 </div>
               </div>

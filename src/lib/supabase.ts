@@ -26,6 +26,7 @@ import {
   normalizeUnitForDB, 
   normalizeJabatanForDB 
 } from './auth';
+import { sortSantriList, sortMasterPelanggaranList } from './sortingHelper';
 
 export const STORAGE_KEY_SUPABASE_URL = 'SIMKA_SUPABASE_URL';
 export const STORAGE_KEY_SUPABASE_KEY = 'SIMKA_SUPABASE_ANON_KEY';
@@ -932,7 +933,7 @@ export async function fetchSantriFromDB(): Promise<Santri[] | null> {
 
     logAuthDebug(`Fetched ${data.length} records from public.santri in Supabase.`);
 
-    return data.map((row: any) => ({
+    const mapped = data.map((row: any) => ({
       id: String(row.id),
       nis: String(row.kode_santri || ''),
       nama: String(row.nama || '').toUpperCase(),
@@ -943,6 +944,8 @@ export async function fetchSantriFromDB(): Promise<Santri[] | null> {
       musyrifNama: row.musyrif || undefined,
       asrama: row.asrama || undefined
     }));
+
+    return sortSantriList(mapped);
   } catch (err: any) {
     logAuthDebug('Exception fetching santri from Supabase:', err?.message);
     return null;
@@ -965,8 +968,8 @@ export async function insertSantriToDB(
   actorRole?: UserRole,
   actorUnit?: string
 ): Promise<{ success: boolean; data?: Santri; error?: string }> {
-  if (actorRole !== 'KASIE_KEPESANTRENAN' && actorUnit !== santriData.unit) {
-    return { success: false, error: `Akses Ditolak: Anda (${actorUnit}) tidak berwenang menambah santri Unit ${santriData.unit}!` };
+  if (actorRole !== 'KASIE_KEPESANTRENAN') {
+    return { success: false, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan / Super Admin yang berwenang menambah data santri!' };
   }
 
   if (!isSupabaseConfigured()) {
@@ -1045,8 +1048,8 @@ export async function updateSantriInDB(
   actorRole?: UserRole,
   actorUnit?: string
 ): Promise<{ success: boolean; error?: string }> {
-  if (actorRole !== 'KASIE_KEPESANTRENAN' && actorUnit !== santriData.unit) {
-    return { success: false, error: `Akses Ditolak: Anda (${actorUnit}) tidak berwenang mengubah santri Unit ${santriData.unit}!` };
+  if (actorRole !== 'KASIE_KEPESANTRENAN') {
+    return { success: false, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan / Super Admin yang berwenang mengubah data santri!' };
   }
 
   if (!isSupabaseConfigured()) return { success: true };
@@ -1303,7 +1306,7 @@ export async function fetchMasterPelanggaranFromDB(): Promise<Pelanggaran[] | nu
       return null;
     }
 
-    return data.map((row: any, idx: number) => ({
+    const mapped = data.map((row: any, idx: number) => ({
       id: String(row.id),
       kode: String(row.kode || `P${String(idx + 1).padStart(3, '0')}`),
       jenis: String(row.nama || ''),
@@ -1311,6 +1314,8 @@ export async function fetchMasterPelanggaranFromDB(): Promise<Pelanggaran[] | nu
       kategori: (row.kategori as PelanggaranKategori) || 'Sangat Ringan',
       konsekuensi: String(row.hukuman || '-')
     }));
+
+    return sortMasterPelanggaranList(mapped);
   } catch (err: any) {
     logAuthDebug('Error fetching master pelanggaran from Supabase:', err?.message);
     return null;

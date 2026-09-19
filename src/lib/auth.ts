@@ -133,13 +133,10 @@ export function can(user: UserAccount | null | undefined, permission: AppPermiss
 
     case 'create_student':
     case 'edit_student':
-      // Musyrif & Koordinator can add/edit students within their own unit; Kasie in any unit
-      return true;
-
     case 'delete_student':
     case 'import_students':
     case 'export_students':
-      // Kasie/Kabid ONLY
+      // STRICT: Kasie/Kabid & Superadmin ONLY. Koordinator and Musyrif are strictly forbidden from editing/deleting/importing/exporting student master data.
       return user.role === 'KASIE_KEPESANTRENAN';
 
     case 'view_violations_rekap':
@@ -268,7 +265,7 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
 
   switch (role) {
     case 'MUSYRIF':
-      // Musyrif has: Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master), Akun Saya.
+      // Musyrif has: Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master), Input Mutaba'ah, Akun Saya.
       // Dashboard is STRICTLY FORBIDDEN.
       return (
         route === 'rekap-pelanggaran' ||
@@ -276,12 +273,13 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
         route === 'catat-pelanggaran' ||
         route === 'data-pelanggaran' ||
         route === 'kamus-pelanggaran' ||
+        route === 'input-mutabaah' ||
         route === 'data-pembinaan' ||
         route === 'riwayat-pembinaan'
       );
 
     case 'KOORDINATOR':
-      // Koordinator has: Dashboard (locked to unit), Rekap, Data Santri, Catat, Master Pelanggaran, Pembinaan, Akun Saya
+      // Koordinator has: Dashboard (locked to unit), Rekap, Data Santri, Catat, Master Pelanggaran, Input Mutaba'ah, Pembinaan, Akun Saya
       return (
         route === 'dashboard' ||
         route === 'rekap-pelanggaran' ||
@@ -289,6 +287,7 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
         route === 'catat-pelanggaran' ||
         route === 'data-pelanggaran' ||
         route === 'kamus-pelanggaran' ||
+        route === 'input-mutabaah' ||
         route === 'data-pembinaan' ||
         route === 'riwayat-pembinaan' ||
         route === 'laporan-pembinaan'

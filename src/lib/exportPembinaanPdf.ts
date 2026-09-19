@@ -1,10 +1,15 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PembinaanFormData } from './pembinaanHelper';
+import { getAdaptiveWrappedText, fitSingleLineFontSize } from './pdfAdaptiveHelpers';
 
 /**
  * Generate and download pure vector, publication-grade A4 Portrait PDF for MUTABA'AH PEMBINAAN SANTRI
- * Strictly respects text-wrapping (splitTextToSize), dynamic height calculation, and clean signature columns.
+ * Adheres strictly to adaptive layout principles:
+ * - Dynamic font scaling and multi-line wrapping
+ * - Exact height calculations to prevent collisions
+ * - Independent 4-column signature grid with generous physical signing area
+ * - Zero overlap, zero clipping, zero unhandled overflow
  */
 export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
   const doc = new jsPDF({
@@ -22,137 +27,199 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
   const marginX = 14;
   const contentWidth = pageWidth - marginX * 2; // 182mm
 
-  let currentY = 12;
+  let currentY = 13;
 
   // ============================================================
-  // 1. KOP SURAT & DOKUMEN RESMI
+  // 1. KOP SURAT & DOKUMEN RESMI (Bersih, Formal, Tanpa Garis Tebal Berlebih)
   // ============================================================
-  // Top green decorative bar
-  doc.setFillColor(0, 168, 120); // #00A878 Emerald
-  doc.rect(marginX, currentY, contentWidth, 1.8, 'F');
-  currentY += 5.5;
-
-  // Document Title
+  // Judul Dokumen Utama
   doc.setFont('times', 'bold');
-  doc.setFontSize(14);
+  doc.setFontSize(15);
   doc.setTextColor(15, 23, 42); // Slate 900
   doc.text(header.title, pageWidth / 2, currentY, { align: 'center' });
-  currentY += 4.5;
+  currentY += 4.8;
 
-  // Institution Subtitle
-  doc.setFontSize(10.5);
+  // Subjudul Lembaga
+  doc.setFontSize(11);
   doc.setTextColor(4, 120, 87); // Emerald 700
   doc.text(header.institution.toUpperCase(), pageWidth / 2, currentY, { align: 'center' });
   currentY += 3.8;
 
+  // SIMKA.ID Tagline
   doc.setFont('times', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
   doc.text('SIMKA.ID — Sistem Monitoring Karakter & Akhlak Santri', pageWidth / 2, currentY, { align: 'center' });
-  currentY += 3.5;
+  currentY += 3.2;
 
-  // Double horizontal line
+  // Garis Pembatas Kop Surat Resmi (Double Line)
   doc.setDrawColor(30, 41, 59);
-  doc.setLineWidth(0.6);
+  doc.setLineWidth(0.55);
   doc.line(marginX, currentY, pageWidth - marginX, currentY);
-  doc.setLineWidth(0.2);
-  doc.line(marginX, currentY + 0.8, pageWidth - marginX, currentY + 0.8);
+  doc.setLineWidth(0.18);
+  doc.line(marginX, currentY + 0.7, pageWidth - marginX, currentY + 0.7);
   currentY += 3.5;
 
   // ============================================================
-  // 2. LEVEL & DURASI BAR
+  // 2. LEVEL & DURASI BAR (Adaptif dalam Satu Baris)
   // ============================================================
+  const levelBarHeight = 6.5;
   doc.setFillColor(241, 245, 249); // Slate 100
   doc.setDrawColor(203, 213, 225);
-  doc.roundedRect(marginX, currentY, contentWidth, 7, 1, 1, 'FD');
+  doc.roundedRect(marginX, currentY, contentWidth, levelBarHeight, 1, 1, 'FD');
 
   doc.setFont('times', 'bold');
-  doc.setFontSize(8.5);
+  const levelFontSize = fitSingleLineFontSize(
+    doc,
+    `LEVEL: ${header.levelName}   POIN: ${header.rangePoin} (${pelanggaran.poin} Poin)   DURASI: ${header.durasiText}`,
+    contentWidth - 6,
+    8.2,
+    7.0,
+    'times',
+    'bold'
+  );
+  doc.setFontSize(levelFontSize);
   doc.setTextColor(15, 23, 42);
 
-  doc.text(`LEVEL: ${header.levelName}`, marginX + 3, currentY + 4.5);
-  doc.text(`POIN PELANGGARAN: ${header.rangePoin} (${pelanggaran.poin} Poin)`, marginX + (contentWidth * 0.38), currentY + 4.5);
-  doc.text(`DURASI: ${header.durasiText}`, pageWidth - marginX - 3, currentY + 4.5, { align: 'right' });
+  doc.text(`LEVEL: ${header.levelName}`, marginX + 3, currentY + 4.3);
+  doc.text(`POIN PELANGGARAN: ${header.rangePoin} (${pelanggaran.poin} Poin)`, marginX + (contentWidth * 0.36), currentY + 4.3);
+  doc.text(`DURASI: ${header.durasiText}`, pageWidth - marginX - 3, currentY + 4.3, { align: 'right' });
 
-  currentY += 9;
+  currentY += levelBarHeight + 2.5;
 
   // ============================================================
-  // 3. IDENTITAS SANTRI & DETAIL PELANGGARAN (WRAP TEXT DYNAMIC)
+  // 3. IDENTITAS SANTRI & DETAIL PELANGGARAN (2-KOLOM DINAMIS)
   // ============================================================
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  
-  const colHalf = contentWidth / 2;
-  const leftX = marginX + 3;
-  const rightX = marginX + colHalf + 3;
+  const colHalf = (contentWidth - 4) / 2;
+  const leftColX = marginX + 3;
+  const rightColX = marginX + colHalf + 5;
+  const labelWidthLeft = 24;
+  const labelWidthRight = 28;
+  const maxValWidthLeft = colHalf - labelWidthLeft - 4;
+  const maxValWidthRight = colHalf - labelWidthRight - 4;
 
-  // Calculate wrapped text heights
-  doc.setFont('times', 'normal');
-  doc.setFontSize(8.5);
+  // Adaptive wrapping untuk teks dinamis
+  const namaAdaptive = getAdaptiveWrappedText(doc, santri.nama.toUpperCase(), maxValWidthLeft, {
+    initialFontSize: 8.5,
+    minFontSize: 7.2,
+    fontName: 'times',
+    fontStyle: 'bold',
+    lineHeightFactor: 1.25,
+    maxLines: 3
+  });
 
-  const namaLines = doc.splitTextToSize(santri.nama.toUpperCase(), colHalf - 32);
-  const jenisPelanggaranLines = doc.splitTextToSize(pelanggaran.jenis, colHalf - 36);
-  const musyrifLines = doc.splitTextToSize(officers.musyrifNama, colHalf - 36);
+  const jenisAdaptive = getAdaptiveWrappedText(doc, pelanggaran.jenis, maxValWidthRight, {
+    initialFontSize: 8.5,
+    minFontSize: 7.0,
+    fontName: 'times',
+    fontStyle: 'normal',
+    lineHeightFactor: 1.25,
+    maxLines: 4
+  });
+
+  const musyrifAdaptive = getAdaptiveWrappedText(doc, officers.musyrifNama, maxValWidthRight, {
+    initialFontSize: 8.5,
+    minFontSize: 7.2,
+    fontName: 'times',
+    fontStyle: 'normal',
+    lineHeightFactor: 1.25,
+    maxLines: 2
+  });
+
   const kelasInfo = `${santri.kelas} (${santri.unit}) / ${santri.kamar}`;
 
-  const maxLeftLines = 1 + namaLines.length + 1; // kelas + nama + total poin
-  const maxRightLines = 1 + jenisPelanggaranLines.length + musyrifLines.length;
-  const maxLineCount = Math.max(maxLeftLines, maxRightLines, 3);
-  const idBoxHeight = Math.max(18, maxLineCount * 4.2 + 6);
+  // Hitung tinggi vertikal kolom kiri & kanan
+  const leftLinesHeight = 3.5 + namaAdaptive.totalHeightMm + 4.0 + 4.0 + 3.0;
+  const rightLinesHeight = 3.5 + jenisAdaptive.totalHeightMm + 4.0 + musyrifAdaptive.totalHeightMm + 3.0;
+  const idBoxHeight = Math.max(leftLinesHeight, rightLinesHeight, 20);
 
-  doc.roundedRect(marginX, currentY, contentWidth, idBoxHeight, 1, 1, 'FD');
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(marginX, currentY, contentWidth, idBoxHeight, 1.2, 1.2, 'FD');
 
-  let idY = currentY + 4;
+  let rowLeftY = currentY + 4.0;
+  let rowRightY = currentY + 4.0;
 
-  // Left Column: Nama, Kelas/Kamar, Total Poin
+  // Kolom Kiri: Nama Santri
   doc.setFont('times', 'bold');
-  doc.text('Nama Santri', leftX, idY);
-  doc.text(':', leftX + 22, idY);
-  doc.text(namaLines, leftX + 25, idY);
+  doc.setFontSize(8.2);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Nama Santri', leftColX, rowLeftY);
+  doc.text(':', leftColX + labelWidthLeft - 2, rowLeftY);
 
-  const namaHeightOffset = namaLines.length * 4;
-  
-  doc.text('Kelas / Kamar', leftX, idY + namaHeightOffset);
-  doc.text(':', leftX + 22, idY + namaHeightOffset);
+  doc.setFont('times', 'bold');
+  doc.setFontSize(namaAdaptive.fontSize);
+  let curNamaY = rowLeftY;
+  namaAdaptive.lines.forEach((line) => {
+    doc.text(line, leftColX + labelWidthLeft, curNamaY);
+    curNamaY += namaAdaptive.lineHeightMm;
+  });
+  rowLeftY = curNamaY + 0.5;
+
+  // Kolom Kiri: Kelas / Kamar
+  doc.setFont('times', 'bold');
+  doc.setFontSize(8.2);
+  doc.text('Kelas / Kamar', leftColX, rowLeftY);
+  doc.text(':', leftColX + labelWidthLeft - 2, rowLeftY);
   doc.setFont('times', 'normal');
-  doc.text(kelasInfo, leftX + 25, idY + namaHeightOffset);
+  doc.text(kelasInfo, leftColX + labelWidthLeft, rowLeftY);
+  rowLeftY += 4.0;
 
+  // Kolom Kiri: Total Poin
   doc.setFont('times', 'bold');
-  doc.text('Total Poin', leftX, idY + namaHeightOffset + 4.5);
-  doc.text(':', leftX + 22, idY + namaHeightOffset + 4.5);
+  doc.setFontSize(8.2);
+  doc.text('Total Poin', leftColX, rowLeftY);
+  doc.text(':', leftColX + labelWidthLeft - 2, rowLeftY);
   doc.setTextColor(185, 28, 28); // Red
-  doc.text(`${santri.totalPoin} Poin`, leftX + 25, idY + namaHeightOffset + 4.5);
+  doc.text(`${santri.totalPoin} Poin`, leftColX + labelWidthLeft, rowLeftY);
   doc.setTextColor(15, 23, 42);
 
-  // Right Column: Jenis Pelanggaran (Auto-wrapped), Periode, Musyrif
+  // Kolom Kanan: Jenis Pelanggaran (Auto-wrapped, dynamic font)
   doc.setFont('times', 'bold');
-  doc.text('Jenis Pelanggaran', rightX, idY);
-  doc.text(':', rightX + 26, idY);
+  doc.setFontSize(8.2);
+  doc.text('Jenis Pelanggaran', rightColX, rowRightY);
+  doc.text(':', rightColX + labelWidthRight - 2, rowRightY);
+
   doc.setFont('times', 'normal');
-  doc.text(jenisPelanggaranLines, rightX + 29, idY);
+  doc.setFontSize(jenisAdaptive.fontSize);
+  let curJenisY = rowRightY;
+  jenisAdaptive.lines.forEach((line) => {
+    doc.text(line, rightColX + labelWidthRight, curJenisY);
+    curJenisY += jenisAdaptive.lineHeightMm;
+  });
+  rowRightY = curJenisY + 0.5;
 
-  const jenisHeightOffset = jenisPelanggaranLines.length * 4;
-
+  // Kolom Kanan: Periode Pembinaan
   doc.setFont('times', 'bold');
-  doc.text('Periode Pembinaan', rightX, idY + jenisHeightOffset);
-  doc.text(':', rightX + 26, idY + jenisHeightOffset);
+  doc.setFontSize(8.2);
+  doc.text('Periode Pembinaan', rightColX, rowRightY);
+  doc.text(':', rightColX + labelWidthRight - 2, rowRightY);
   doc.setFont('times', 'normal');
-  doc.text(pembinaan.periodeText, rightX + 29, idY + jenisHeightOffset);
+  doc.text(pembinaan.periodeText, rightColX + labelWidthRight, rowRightY);
+  rowRightY += 4.0;
 
+  // Kolom Kanan: Musyrif / Musyrifah
   doc.setFont('times', 'bold');
-  doc.text('Musyrif / Musyrifah', rightX, idY + jenisHeightOffset + 4.5);
-  doc.text(':', rightX + 26, idY + jenisHeightOffset + 4.5);
+  doc.setFontSize(8.2);
+  doc.text('Musyrif / Musyrifah', rightColX, rowRightY);
+  doc.text(':', rightColX + labelWidthRight - 2, rowRightY);
+
   doc.setFont('times', 'normal');
-  doc.text(musyrifLines, rightX + 29, idY + jenisHeightOffset + 4.5);
+  doc.setFontSize(musyrifAdaptive.fontSize);
+  let curMusyrifY = rowRightY;
+  musyrifAdaptive.lines.forEach((line) => {
+    doc.text(line, rightColX + labelWidthRight, curMusyrifY);
+    curMusyrifY += musyrifAdaptive.lineHeightMm;
+  });
 
-  currentY += idBoxHeight + 2;
+  currentY += idBoxHeight + 1.8;
 
-  // Hint text
+  // Petunjuk singkat
   doc.setFont('times', 'italic');
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setTextColor(100, 116, 139);
   doc.text('* Tanda (✓) = kegiatan pembinaan telah dilaksanakan. Kolom \'Paraf\' wajib divalidasi oleh Musyrif/ah pendamping.', marginX, currentY);
-  currentY += 3;
+  currentY += 2.8;
 
   // ============================================================
   // 4. TABEL KETERANGAN KOLOM JENIS PEMBINAAN (P1 - Pn)
@@ -165,26 +232,28 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
     body: codes.map((c) => [c.code, c.uraian]),
     styles: {
       font: 'times',
-      fontSize: 7.5,
-      cellPadding: 1.2,
+      fontSize: 7.2,
+      cellPadding: 1.0,
       textColor: [15, 23, 42],
       lineColor: [30, 41, 59],
-      lineWidth: 0.15
+      lineWidth: 0.12,
+      overflow: 'linebreak'
     },
     headStyles: {
       fillColor: [30, 41, 59], // Slate 800
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 7.5,
-      halign: 'left'
+      fontSize: 7.2,
+      halign: 'left',
+      cellPadding: 1.2
     },
     columnStyles: {
-      0: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
-      1: { cellWidth: 'auto', halign: 'left' }
+      0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: 'auto', halign: 'left', overflow: 'linebreak' }
     }
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 3;
+  currentY = (doc as any).lastAutoTable.finalY + 2.5;
 
   // ============================================================
   // 5. TABEL MUTABA'AH HARIAN (Dinamis Sesuai Durasi Hari)
@@ -206,7 +275,7 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
     ''
   ]);
 
-  // Append Summary Row
+  // Baris Ringkasan Target
   tableBody.push([
     'Jumlah Hari Terlaksana:',
     '',
@@ -225,16 +294,20 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
   ]);
 
   const colStyles: any = {
-    0: { cellWidth: 8, halign: 'center', fontStyle: 'bold' },
-    1: { cellWidth: 22, halign: 'center', fontSize: 6.5, font: 'courier' }
+    0: { cellWidth: 7.5, halign: 'center', fontStyle: 'bold' },
+    1: { cellWidth: 20, halign: 'center', fontSize: 6.2, font: 'courier' }
   };
 
-  // Assign width to P1-P11 columns
+  // Lebar kolom P1 s/d P11
   for (let i = 0; i < 11; i++) {
-    colStyles[2 + i] = { cellWidth: 6, halign: 'center' };
+    colStyles[2 + i] = { cellWidth: 5.8, halign: 'center' };
   }
-  colStyles[13] = { cellWidth: 14, halign: 'center' };
+  colStyles[13] = { cellWidth: 13, halign: 'center' };
   colStyles[14] = { cellWidth: 'auto', halign: 'left' };
+
+  // Hitung cellPadding dinamis berdasarkan jumlah hari agar seluruh dokumen muat rapi di 1 halaman A4
+  const rowCount = mutabaahRows.length;
+  const harianCellPadding = rowCount > 10 ? 0.6 : rowCount > 7 ? 0.8 : 1.1;
 
   autoTable(doc, {
     startY: currentY,
@@ -244,22 +317,23 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
     body: tableBody,
     styles: {
       font: 'times',
-      fontSize: 7,
-      cellPadding: 1,
+      fontSize: 6.8,
+      cellPadding: harianCellPadding,
       textColor: [15, 23, 42],
       lineColor: [30, 41, 59],
-      lineWidth: 0.15
+      lineWidth: 0.12
     },
     headStyles: {
       fillColor: [30, 41, 59],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 7,
-      halign: 'center'
+      fontSize: 6.8,
+      halign: 'center',
+      cellPadding: 1.0
     },
     columnStyles: colStyles,
     didParseCell: (dataCell) => {
-      // Summary footer styling
+      // Styling summary row di bagian bawah tabel
       if (dataCell.row.index === tableBody.length - 1) {
         dataCell.cell.styles.fillColor = [241, 245, 249];
         dataCell.cell.styles.fontStyle = 'bold';
@@ -274,23 +348,11 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
     }
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 4;
+  currentY = (doc as any).lastAutoTable.finalY + 3.0;
 
   // ============================================================
-  // 6. AREA TANDA TANGAN 4 KOLOM DENGAN JARAK LEGA & AUTO-WRAP
+  // 6. AREA TANDA TANGAN 4 KOLOM SEIMBANG (REVISI KHUSUS)
   // ============================================================
-  // Ensure we don't bleed out of page; if Y is too close to bottom, adjust safely
-  if (currentY > pageHeight - 38) {
-    currentY = pageHeight - 38;
-  }
-
-  // Date and place
-  doc.setFont('times', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(15, 23, 42);
-  doc.text(officers.kotaTanggal, pageWidth - marginX, currentY, { align: 'right' });
-  currentY += 4;
-
   const sigColWidth = contentWidth / 4;
   const colCenters = [
     marginX + sigColWidth * 0.5,
@@ -299,46 +361,155 @@ export function exportMutabaahPembinaanPDF(data: PembinaanFormData): void {
     marginX + sigColWidth * 3.5
   ];
 
-  // Titles
-  doc.setFont('times', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('Santri', colCenters[0], currentY, { align: 'center' });
-  doc.text('Orang Tua / Wali', colCenters[1], currentY, { align: 'center' });
-  doc.text('Musyrif / Musyrifah', colCenters[2], currentY, { align: 'center' });
-  
-  doc.setFontSize(7.5);
-  doc.text('Mengetahui,', colCenters[3], currentY - 1.5, { align: 'center' });
-  doc.setFontSize(8);
-  doc.text(`Koordinator Unit ${officers.unitName}`, colCenters[3], currentY + 1.8, { align: 'center' });
+  const maxSigTextWidth = sigColWidth - 3.5; // ~42mm
 
-  // Signature gap
-  currentY += 15;
+  // Cek apakah posisi Y aman dari batas bawah A4
+  const estimatedSigHeight = 35; // mm
+  if (currentY + estimatedSigHeight > pageHeight - 10) {
+    currentY = pageHeight - estimatedSigHeight - 10;
+  }
 
-  // Names (Wrapped cleanly up to 2 lines, centered)
-  doc.setFont('times', 'bold');
-  doc.setFontSize(8.5);
+  // --- BAGIAN ATAS AREA TANDA TANGAN (HEADER & LABEL PERAN) ---
+  const headerBlockStartY = currentY;
 
-  const santriSigName = doc.splitTextToSize(santri.nama.toUpperCase(), sigColWidth - 4);
-  const musyrifSigName = doc.splitTextToSize(officers.musyrifNama, sigColWidth - 4);
-  const koordinatorSigName = doc.splitTextToSize(officers.koordinatorNama, sigColWidth - 4);
-
-  doc.text(santriSigName, colCenters[0], currentY, { align: 'center' });
-  doc.text('Orang Tua / Wali Santri', colCenters[1], currentY, { align: 'center' });
-  doc.text(musyrifSigName, colCenters[2], currentY, { align: 'center' });
-  doc.text(koordinatorSigName, colCenters[3], currentY, { align: 'center' });
-
-  currentY += Math.max(santriSigName.length, musyrifSigName.length, koordinatorSigName.length) * 3.5;
-
-  // Subtitles / (Nama & Paraf)
+  // Kolom 4: Tanggal & Kota (Tengaran, ...)
   doc.setFont('times', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(100, 116, 139);
-  doc.text('(Nama & Paraf)', colCenters[0], currentY, { align: 'center' });
-  doc.text('(Nama & Paraf)', colCenters[1], currentY, { align: 'center' });
-  doc.text('(Nama & Paraf)', colCenters[2], currentY, { align: 'center' });
-  doc.text('(Nama & Paraf)', colCenters[3], currentY, { align: 'center' });
+  doc.setFontSize(8.0);
+  doc.setTextColor(15, 23, 42);
+  doc.text(officers.kotaTanggal, colCenters[3], headerBlockStartY, { align: 'center' });
 
-  // Trigger download
+  // Kolom 4: Mengetahui,
+  const mengetahuiY = headerBlockStartY + 3.8;
+  doc.setFont('times', 'normal');
+  doc.setFontSize(8.0);
+  doc.text('Mengetahui,', colCenters[3], mengetahuiY, { align: 'center' });
+
+  // Baris Label Peran Utama (Sejajar Horisontal di ke-4 Kolom)
+  const roleLabelY = headerBlockStartY + 7.8;
+
+  doc.setFont('times', 'bold');
+  doc.setFontSize(9.0);
+  doc.setTextColor(15, 23, 42);
+
+  // Kolom 1: Santri
+  doc.text('Santri', colCenters[0], roleLabelY, { align: 'center' });
+
+  // Kolom 2: Orang Tua / Wali
+  doc.text('Orang Tua / Wali', colCenters[1], roleLabelY, { align: 'center' });
+
+  // Kolom 3: Musyrif / Musyrifah
+  doc.text('Musyrif / Musyrifah', colCenters[2], roleLabelY, { align: 'center' });
+
+  // Kolom 4: Koordinator Unit
+  doc.setFontSize(8.5);
+  doc.text(`Koordinator Unit ${officers.unitName}`, colCenters[3], roleLabelY, { align: 'center' });
+
+  // --- RUANG KOSONG TANDA TANGAN (± 35–45 pt / ~13–15 mm) ---
+  const ttdGapMm = 14.0;
+  const nameStartY = roleLabelY + ttdGapMm;
+
+  // --- NAMA-NAMA PEJABAT / SANTRI (ADAPTIF, WRAP 2 BARIS, CENTER) ---
+  // Kolom 1: Santri
+  const santriSig = getAdaptiveWrappedText(doc, santri.nama.toUpperCase(), maxSigTextWidth, {
+    initialFontSize: 8.8,
+    minFontSize: 7.2,
+    fontName: 'times',
+    fontStyle: 'bold',
+    maxLines: 2,
+    lineHeightFactor: 1.2
+  });
+
+  // Kolom 2: Orang Tua / Wali
+  const waliNamaText = 'Orang Tua / Wali Santri';
+  const waliSig = getAdaptiveWrappedText(doc, waliNamaText, maxSigTextWidth, {
+    initialFontSize: 8.8,
+    minFontSize: 7.2,
+    fontName: 'times',
+    fontStyle: 'bold',
+    maxLines: 2,
+    lineHeightFactor: 1.2
+  });
+
+  // Kolom 3: Musyrif / Musyrifah
+  const musyrifSig = getAdaptiveWrappedText(doc, officers.musyrifNama, maxSigTextWidth, {
+    initialFontSize: 8.8,
+    minFontSize: 7.2,
+    fontName: 'times',
+    fontStyle: 'bold',
+    maxLines: 2,
+    lineHeightFactor: 1.2
+  });
+
+  // Kolom 4: Koordinator Unit
+  const koordinatorSig = getAdaptiveWrappedText(doc, officers.koordinatorNama, maxSigTextWidth, {
+    initialFontSize: 8.8,
+    minFontSize: 7.2,
+    fontName: 'times',
+    fontStyle: 'bold',
+    maxLines: 2,
+    lineHeightFactor: 1.2
+  });
+
+  // Render Kolom 1: Nama Santri (Center)
+  doc.setFont('times', 'bold');
+  doc.setFontSize(santriSig.fontSize);
+  doc.setTextColor(15, 23, 42);
+  let yS = nameStartY;
+  santriSig.lines.forEach((line) => {
+    doc.text(line, colCenters[0], yS, { align: 'center' });
+    yS += santriSig.lineHeightMm;
+  });
+
+  // Render Kolom 2: Nama Orang Tua / Wali (Center)
+  doc.setFont('times', 'bold');
+  doc.setFontSize(waliSig.fontSize);
+  doc.setTextColor(15, 23, 42);
+  let yW = nameStartY;
+  waliSig.lines.forEach((line) => {
+    doc.text(line, colCenters[1], yW, { align: 'center' });
+    yW += waliSig.lineHeightMm;
+  });
+
+  // Render Kolom 3: Nama Musyrif (Center)
+  doc.setFont('times', 'bold');
+  doc.setFontSize(musyrifSig.fontSize);
+  doc.setTextColor(15, 23, 42);
+  let yM = nameStartY;
+  musyrifSig.lines.forEach((line) => {
+    doc.text(line, colCenters[2], yM, { align: 'center' });
+    yM += musyrifSig.lineHeightMm;
+  });
+
+  // Render Kolom 4: Nama Koordinator (Center)
+  doc.setFont('times', 'bold');
+  doc.setFontSize(koordinatorSig.fontSize);
+  doc.setTextColor(15, 23, 42);
+  let yK = nameStartY;
+  koordinatorSig.lines.forEach((line) => {
+    doc.text(line, colCenters[3], yK, { align: 'center' });
+    yK += koordinatorSig.lineHeightMm;
+  });
+
+  // --- KETERANGAN "(Nama & Paraf)" (DINAMIS DI BAWAH NAMA) ---
+  // Jarak vertikal rapi ± 4-6 pt (1.6 - 2.0 mm) di bawah nama tertinggi
+  const maxNameHeightMm = Math.max(
+    santriSig.totalHeightMm,
+    waliSig.totalHeightMm,
+    musyrifSig.totalHeightMm,
+    koordinatorSig.totalHeightMm
+  );
+
+  const subtitleY = nameStartY + maxNameHeightMm + 1.8;
+
+  doc.setFont('times', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139); // Slate 500
+  doc.text('(Nama & Paraf)', colCenters[0], subtitleY, { align: 'center' });
+  doc.text('(Nama & Paraf)', colCenters[1], subtitleY, { align: 'center' });
+  doc.text('(Nama & Paraf)', colCenters[2], subtitleY, { align: 'center' });
+  doc.text('(Nama & Paraf)', colCenters[3], subtitleY, { align: 'center' });
+
+  // Simpan dan Unduh File PDF
   const sanitizedName = santri.nama.replace(/[\\/:*?"<>|]/g, '').trim() || 'Santri';
   const fileName = `Form Mutabaah Pembinaan - ${sanitizedName} - Tingkat ${header.levelNumber}.pdf`;
   doc.save(fileName);

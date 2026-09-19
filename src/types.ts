@@ -110,6 +110,7 @@ export type PageRoute =
   | 'rekap-pelanggaran'
   | 'data-pelanggaran'
   | 'kamus-pelanggaran'
+  | 'input-mutabaah'
   | 'data-pembinaan'
   | 'riwayat-pembinaan'
   | 'laporan-pembinaan'

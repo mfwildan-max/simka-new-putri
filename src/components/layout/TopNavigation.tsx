@@ -88,6 +88,8 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenSidebar }) =
         return { title: 'Pengelolaan Data Santri', sub: 'Master data identitas, musyrif, dan rekam jejak poin' };
       case 'catat-pelanggaran':
         return { title: 'Catat Pelanggaran Santri', sub: 'Pencatatan pelanggaran baru & rujukan tingkat pembinaan' };
+      case 'input-mutabaah':
+        return { title: "Input Mutaba'ah Santri", sub: 'Pencatatan mutabaah pembinaan dan ibadah santri' };
       case 'rekap-pelanggaran':
         return { title: 'Rekap Riwayat Pelanggaran', sub: 'Log histori pelanggaran santri terstruktur' };
       case 'data-pelanggaran':
@@ -127,7 +129,10 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenSidebar }) =
 
             <div className="min-w-0">
               <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate flex items-center gap-2">
-                {title}
+                <span>{title}</span>
+                <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 tracking-wider">
+                  PRO V.1
+                </span>
               </h1>
               <p className="hidden md:block text-xs text-slate-500 dark:text-slate-400 truncate">
                 {sub}

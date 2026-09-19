@@ -14,7 +14,8 @@ import {
   X,
   ChevronRight,
   ChevronLeft,
-  Database
+  Database,
+  FileCheck2
 } from 'lucide-react';
 import { canRoleAccessRoute, getRoleDisplayName } from '../../lib/auth';
 
@@ -80,6 +81,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: ClipboardEdit
         },
         {
+          route: 'input-mutabaah',
+          label: "Input Mutaba'ah",
+          icon: FileCheck2
+        },
+        {
           route: 'data-pelanggaran',
           label: 'Data Pelanggaran (Master)',
           icon: BookOpen
@@ -136,9 +142,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {!isCollapsed && (
               <div className="min-w-0">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <span className="text-lg font-black text-slate-900 dark:text-white tracking-wider">
                     SIMKA<span className="text-emerald-500 dark:text-emerald-400">.ID</span>
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 tracking-wider">
+                    PRO V.1
                   </span>
                 </div>
                 <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 leading-tight">

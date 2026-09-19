@@ -40,6 +40,7 @@ export function getOfficialKategori(poin: number): {
 
 /**
  * Export filtered riwayat pelanggaran to high quality, publication-ready A4 PDF
+ * Adheres strictly to adaptive layout, automatic row height, and zero text collision.
  */
 export function exportRiwayatPelanggaranPDF(
   records: RiwayatPelanggaran[],
@@ -48,7 +49,8 @@ export function exportRiwayatPelanggaranPDF(
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: 'a4'
+    format: 'a4',
+    compress: true
   });
 
   const now = new Date();
@@ -63,133 +65,147 @@ export function exportRiwayatPelanggaranPDF(
 
   const unitLabel = options.unitFilter && options.unitFilter !== 'ALL' && options.unitFilter !== 'Semua'
     ? `Unit ${options.unitFilter}`
-    : 'Semua Unit (SMP, MA, SMA)';
+    : 'Semua Unit';
 
   const statusLabel = options.statusFilter && options.statusFilter !== 'All' && options.statusFilter !== 'Semua'
     ? options.statusFilter
     : 'Semua Status';
 
-  // Compute summary stats
+  // Compute summary statistics
   const totalRecords = records.length;
   const uniqueSantri = new Set(records.map((r) => r.santriId || r.santriNama)).size;
   const totalPoints = records.reduce((sum, r) => sum + (r.poin || 0), 0);
   const totalSelesai = records.filter((r) => r.status === 'Selesai').length;
   const totalBelumSelesai = records.filter((r) => r.status !== 'Selesai').length;
 
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
+  const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
   const marginX = 14;
-  const contentWidth = pageWidth - marginX * 2;
+  const contentWidth = pageWidth - marginX * 2; // 182mm
 
-  // 1. PAGE HEADER (Page 1)
-  let currentY = 15;
+  // ============================================================
+  // 1. PAGE HEADER (Clean, Professional, Tanpa Garis Hijau Tebal di Atas)
+  // ============================================================
+  let currentY = 14;
 
-  // Top Bar Accent
-  doc.setFillColor(15, 76, 58); // Dark Pesantren Emerald
-  doc.rect(marginX, currentY, contentWidth, 2, 'F');
-  currentY += 6;
-
-  // Header Titles
+  // Title Utama (18-20 pt)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
+  doc.setFontSize(16);
   doc.setTextColor(15, 23, 42); // Slate 900
   doc.text('REKAP RIWAYAT PELANGGARAN SANTRI', pageWidth / 2, currentY, { align: 'center' });
-  currentY += 5.5;
+  currentY += 5.2;
 
+  // Subtitle Instansi (11-12 pt)
   doc.setFontSize(11);
-  doc.setTextColor(5, 150, 105); // Emerald 600
+  doc.setTextColor(4, 120, 87); // Emerald 700
   doc.text('PESANTREN NURUL ISLAM TENGARAN', pageWidth / 2, currentY, { align: 'center' });
-  currentY += 4.5;
+  currentY += 4.2;
 
+  // Tagline SIMKA.ID
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(100, 116, 139); // Slate 500
   doc.text('SIMKA.ID — Sistem Monitoring Karakter & Akhlak Santri', pageWidth / 2, currentY, { align: 'center' });
-  currentY += 4;
+  currentY += 3.8;
 
-  // Horizontal Divider Line
+  // Garis Pembatas Tipis & Elegan
   doc.setDrawColor(203, 213, 225); // Slate 300
-  doc.setLineWidth(0.4);
+  doc.setLineWidth(0.35);
   doc.line(marginX, currentY, pageWidth - marginX, currentY);
-  currentY += 5;
+  currentY += 4.5;
 
-  // 2. FILTER & METADATA BAR (2 Columns)
+  // ============================================================
+  // 2. METADATA & FILTER BAR (Compact 2-Column Box)
+  // ============================================================
+  const metaBoxHeight = 12.5;
   doc.setFillColor(248, 250, 252); // Slate 50
   doc.setDrawColor(226, 232, 240); // Slate 200
-  doc.roundedRect(marginX, currentY, contentWidth, 14, 1.5, 1.5, 'FD');
+  doc.roundedRect(marginX, currentY, contentWidth, metaBoxHeight, 1.2, 1.2, 'FD');
 
-  doc.setFontSize(8.5);
-  // Column 1
-  doc.setTextColor(71, 85, 105);
-  doc.text('Periode:', marginX + 4, currentY + 5);
+  const halfWidth = contentWidth / 2;
+  const col1X = marginX + 3.5;
+  const col2X = marginX + halfWidth + 3.5;
+
+  doc.setFontSize(8);
+
+  // Kolom Kiri
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 116, 139);
+  doc.text('Periode:', col1X, currentY + 4.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(currentPeriod, marginX + 22, currentY + 5);
+  doc.text(currentPeriod, col1X + 18, currentY + 4.5);
 
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(71, 85, 105);
-  doc.text('Unit:', marginX + 4, currentY + 10);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Unit:', col1X, currentY + 9.2);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(unitLabel, marginX + 22, currentY + 10);
+  doc.text(unitLabel, col1X + 18, currentY + 9.2);
 
-  // Column 2
-  const col2X = marginX + (contentWidth / 2) + 4;
+  // Kolom Kanan
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(71, 85, 105);
-  doc.text('Status:', col2X, currentY + 5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Status:', col2X, currentY + 4.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(statusLabel, col2X + 26, currentY + 5);
+  doc.text(statusLabel, col2X + 22, currentY + 4.5);
 
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(71, 85, 105);
-  doc.text('Tanggal Cetak:', col2X, currentY + 10);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Tanggal Cetak:', col2X, currentY + 9.2);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42);
-  doc.text(formattedDate, col2X + 26, currentY + 10);
+  doc.text(formattedDate, col2X + 22, currentY + 9.2);
 
-  currentY += 18;
+  currentY += metaBoxHeight + 3.5;
 
-  // 3. STATISTICAL SUMMARY BOXES (4 Columns)
-  const boxWidth = (contentWidth - 9) / 4;
-  const boxHeight = 12;
+  // ============================================================
+  // 3. SUMMARY STATS CARDS (4 Kolom Proporsional, Tinggi Sama)
+  // ============================================================
+  const cardGap = 2.5;
+  const cardWidth = (contentWidth - cardGap * 3) / 4;
+  const cardHeight = 11.5;
 
-  const statBoxes = [
+  const statCards = [
     { label: 'TOTAL PELANGGARAN', value: `${totalRecords} Data`, color: [15, 76, 58] as [number, number, number] },
     { label: 'SANTRI TERLIBAT', value: `${uniqueSantri} Santri`, color: [2, 132, 199] as [number, number, number] },
     { label: 'TOTAL POIN', value: `${totalPoints} Poin`, color: [225, 29, 72] as [number, number, number] },
     { label: 'STATUS TINDAK LANJUT', value: `${totalSelesai} Selesai • ${totalBelumSelesai} Aktif`, color: [79, 70, 229] as [number, number, number] }
   ];
 
-  statBoxes.forEach((box, i) => {
-    const x = marginX + i * (boxWidth + 3);
+  statCards.forEach((card, idx) => {
+    const x = marginX + idx * (cardWidth + cardGap);
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(x, currentY, boxWidth, boxHeight, 1.5, 1.5, 'FD');
+    doc.roundedRect(x, currentY, cardWidth, cardHeight, 1.2, 1.2, 'FD');
 
+    // Label
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.2);
     doc.setTextColor(100, 116, 139);
-    doc.text(box.label, x + 3, currentY + 4.2);
+    doc.text(card.label, x + 2.5, currentY + 4);
 
-    doc.setFontSize(8.5);
-    doc.setTextColor(box.color[0], box.color[1], box.color[2]);
-    doc.text(box.value, x + 3, currentY + 9.2);
+    // Value
+    doc.setFontSize(8);
+    doc.setTextColor(card.color[0], card.color[1], card.color[2]);
+    doc.text(card.value, x + 2.5, currentY + 8.8);
   });
 
-  currentY += 16;
+  currentY += cardHeight + 4;
 
-  // Optional: Search filter note
+  // Catatan filter pencarian jika aktif
   if (options.searchQuery && options.searchQuery.trim()) {
     doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(100, 116, 139);
-    doc.text(`* Filter kata kunci aktif: "${options.searchQuery}" (${totalRecords} hasil)`, marginX, currentY);
-    currentY += 4;
+    doc.text(`* Filter pencarian aktif: "${options.searchQuery}" (${totalRecords} data ditemukan)`, marginX, currentY);
+    currentY += 3.2;
   }
 
-  // 4. TABLE GENERATION USING autoTable (Vector text, clean cell wrap, multi-page headers)
+  // ============================================================
+  // 4. TABEL REKAP RIWAYAT (ADAPTIVE WRAPPING & AUTO ROW HEIGHT)
+  // ============================================================
   const tableData = records.map((log, index) => {
     const kat = getOfficialKategori(log.poin);
     return [
@@ -198,10 +214,10 @@ export function exportRiwayatPelanggaranPDF(
       log.santriNama || '-',
       `${log.santriKelas || '-'} (${log.santriUnit || '-'})`,
       log.jenisPelanggaranNama || '-',
-      `+${log.poin} Poin`,
+      `+${log.poin}`,
       kat.label,
       log.pencatat || 'Petugas',
-      log.status || 'Belum Selesai'
+      log.status === 'Selesai' ? 'Selesai' : 'Belum Selesai'
     ];
   });
 
@@ -210,43 +226,44 @@ export function exportRiwayatPelanggaranPDF(
     head: [['No', 'Tanggal', 'Nama Santri', 'Kelas / Unit', 'Jenis Pelanggaran', 'Poin', 'Kategori', 'Pelapor', 'Status']],
     body: tableData,
     theme: 'grid',
-    margin: { left: marginX, right: marginX, top: 18, bottom: 18 },
+    margin: { left: marginX, right: marginX, top: 16, bottom: 16 },
     showHead: 'everyPage',
+    pageBreak: 'auto',
     headStyles: {
-      fillColor: [15, 76, 58], // Forest Emerald
+      fillColor: [30, 41, 59], // Slate 800 (Clean, Dark, Professional)
       textColor: [255, 255, 255],
-      fontSize: 8,
+      fontSize: 7.5,
       fontStyle: 'bold',
       halign: 'center',
       valign: 'middle',
-      cellPadding: 2.8,
-      lineWidth: 0.2,
+      cellPadding: 2,
+      lineWidth: 0.15,
       lineColor: [203, 213, 225]
     },
     bodyStyles: {
       fontSize: 7.2,
-      textColor: [30, 41, 59], // Slate 800
-      cellPadding: 2.2,
+      textColor: [30, 41, 59],
+      cellPadding: 1.8,
       valign: 'middle',
-      lineWidth: 0.15,
+      overflow: 'linebreak',
+      lineWidth: 0.12,
       lineColor: [226, 232, 240]
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252] // Slate 50
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 7 }, // No
-      1: { cellWidth: 23 },                  // Tanggal
-      2: { fontStyle: 'bold', cellWidth: 28 },// Nama Santri
-      3: { halign: 'center', cellWidth: 16 },// Kelas / Unit
-      4: { cellWidth: 'auto' },              // Jenis Pelanggaran (auto wrap, no clipping)
-      5: { halign: 'center', fontStyle: 'bold', cellWidth: 13 }, // Poin
-      6: { halign: 'center', cellWidth: 18 }, // Kategori
-      7: { cellWidth: 20 },                  // Pelapor
-      8: { halign: 'center', cellWidth: 16 }  // Status
+      0: { halign: 'center', cellWidth: 7 },                          // No
+      1: { halign: 'center', cellWidth: 18, fontSize: 6.8 },           // Tanggal
+      2: { fontStyle: 'bold', cellWidth: 26, overflow: 'linebreak' }, // Nama Santri (Wrap dynamic)
+      3: { halign: 'center', cellWidth: 16, fontSize: 6.8 },           // Kelas / Unit
+      4: { cellWidth: 'auto', overflow: 'linebreak', fontSize: 7.0 },  // Jenis Pelanggaran (Auto widest, wrap)
+      5: { halign: 'center', fontStyle: 'bold', cellWidth: 11 },       // Poin
+      6: { halign: 'center', cellWidth: 16, fontSize: 6.8 },           // Kategori
+      7: { cellWidth: 20, overflow: 'linebreak', fontSize: 6.8 },      // Pelapor
+      8: { halign: 'center', cellWidth: 16, fontSize: 6.8 }            // Status
     },
     didParseCell: (data) => {
-      // Styling custom for Poin, Kategori, and Status cells
       if (data.section === 'body') {
         const rawRow = records[data.row.index];
         if (!rawRow) return;
@@ -282,22 +299,22 @@ export function exportRiwayatPelanggaranPDF(
       // Top running title on pages 2+
       if (pageNumber > 1) {
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7.5);
+        doc.setFontSize(7.2);
         doc.setTextColor(148, 163, 184); // Slate 400
         doc.text('Rekap Riwayat Pelanggaran Santri — Pesantren Nurul Islam Tengaran', marginX, 10);
         doc.setDrawColor(226, 232, 240);
         doc.setLineWidth(0.2);
-        doc.line(marginX, 12, pageWidth - marginX, 12);
+        doc.line(marginX, 11.5, pageWidth - marginX, 11.5);
       }
 
       // Bottom Running Footer on every page
-      const footerY = pageHeight - 10;
+      const footerY = pageHeight - 9;
       doc.setDrawColor(226, 232, 240);
       doc.setLineWidth(0.2);
-      doc.line(marginX, footerY - 2.5, pageWidth - marginX, footerY - 2.5);
+      doc.line(marginX, footerY - 2, pageWidth - marginX, footerY - 2);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
+      doc.setFontSize(6.8);
       doc.setTextColor(100, 116, 139); // Slate 500
 
       // Left footer

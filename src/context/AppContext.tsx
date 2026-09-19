@@ -61,6 +61,7 @@ import {
   hashPasswordSync 
 } from '../lib/auth';
 import { getKategoriFromPoin } from '../components/common/PointBadge';
+import { sortSantriList, sortMasterPelanggaranList } from '../lib/sortingHelper';
 
 export interface ToastInfo {
   id: string;
@@ -359,20 +360,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('simka_master_pelanggaran');
       if (saved) {
         const parsed: Pelanggaran[] = JSON.parse(saved);
-        return parsed.map((p) => ({
+        const mapped = parsed.map((p) => ({
           ...p,
           kategori: getKategoriFromPoin(p.poin).kategori
         }));
+        return sortMasterPelanggaranList(mapped);
       }
-      return initialPelanggaranList.map((p) => ({
+      const mapped = initialPelanggaranList.map((p) => ({
         ...p,
         kategori: getKategoriFromPoin(p.poin).kategori
       }));
+      return sortMasterPelanggaranList(mapped);
     } catch (e) {
-      return initialPelanggaranList.map((p) => ({
+      const mapped = initialPelanggaranList.map((p) => ({
         ...p,
         kategori: getKategoriFromPoin(p.poin).kategori
       }));
+      return sortMasterPelanggaranList(mapped);
     }
   });
 
@@ -389,9 +393,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [allSantriList, setAllSantriList] = useState<Santri[]>(() => {
     try {
       const saved = localStorage.getItem('simka_santri');
-      return saved ? JSON.parse(saved) : initialSantriList;
+      return saved ? sortSantriList(JSON.parse(saved)) : sortSantriList(initialSantriList);
     } catch (e) {
-      return initialSantriList;
+      return sortSantriList(initialSantriList);
     }
   });
 
@@ -485,13 +489,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
         });
 
-        setAllSantriList(santriWithPoin);
-        localStorage.setItem('simka_santri', JSON.stringify(santriWithPoin));
+        const sortedSantri = sortSantriList(santriWithPoin);
+        setAllSantriList(sortedSantri);
+        localStorage.setItem('simka_santri', JSON.stringify(sortedSantri));
       }
 
       if (dbMasterPelanggaran !== null && dbMasterPelanggaran.length > 0) {
-        setPelanggaranList(dbMasterPelanggaran);
-        localStorage.setItem('simka_master_pelanggaran', JSON.stringify(dbMasterPelanggaran));
+        const sortedPelanggaran = sortMasterPelanggaranList(dbMasterPelanggaran);
+        setPelanggaranList(sortedPelanggaran);
+        localStorage.setItem('simka_master_pelanggaran', JSON.stringify(sortedPelanggaran));
       }
 
       if (dbMasterPembinaan !== null && dbMasterPembinaan.length > 0) {
@@ -696,7 +702,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       konsekuensi: data.konsekuensi?.trim() || '-'
     };
 
-    setPelanggaranList((prev) => [newPelanggaran, ...prev]);
+    setPelanggaranList((prev) => sortMasterPelanggaranList([newPelanggaran, ...prev]));
     showToast(
       'Pelanggaran Ditambahkan',
       `Item "${newPelanggaran.jenis}" (${newPelanggaran.poin} Poin - ${newPelanggaran.kategori}) berhasil ditambahkan.`,
@@ -747,19 +753,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setPelanggaranList((prev) =>
-      prev.map((p) => {
-        if (p.id === id) {
-          return {
-            ...p,
-            kode: data.kode || p.kode,
-            jenis: cleanJenis,
-            poin: cleanPoin,
-            kategori: calculatedKategori,
-            konsekuensi: data.konsekuensi?.trim() || '-'
-          };
-        }
-        return p;
-      })
+      sortMasterPelanggaranList(
+        prev.map((p) => {
+          if (p.id === id) {
+            return {
+              ...p,
+              kode: data.kode || p.kode,
+              jenis: cleanJenis,
+              poin: cleanPoin,
+              kategori: calculatedKategori,
+              konsekuensi: data.konsekuensi?.trim() || '-'
+            };
+          }
+          return p;
+        })
+      )
     );
 
     showToast('Pelanggaran Diperbarui', `Item "${cleanJenis}" berhasil diperbarui.`, 'success');
@@ -994,7 +1002,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (dbRes.insertedData && dbRes.insertedData.length > 0) {
-      setPelanggaranList((prev) => [...dbRes.insertedData!, ...prev]);
+      setPelanggaranList((prev) => sortMasterPelanggaranList([...dbRes.insertedData!, ...prev]));
     }
 
     showToast(
@@ -1301,8 +1309,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Silakan login terlebih dahulu.' };
     }
 
-    if (user.role !== 'KASIE_KEPESANTRENAN' && user.unit !== data.unit) {
-      return { success: false, message: `Akses Ditolak: Anda (${user.unit}) tidak diizinkan menambah santri Unit ${data.unit}!` };
+    if (user.role !== 'KASIE_KEPESANTRENAN') {
+      return { success: false, message: 'Akses Ditolak: Hanya Kasie Kepesantrenan / Super Admin yang berwenang menambah data santri!' };
     }
 
     if (!data.nis || !data.nama || !data.kelas || !data.unit) {
@@ -1343,7 +1351,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       keterangan: data.keterangan?.trim()
     };
 
-    setAllSantriList((prev) => [newSantri, ...prev]);
+    setAllSantriList((prev) => sortSantriList([newSantri, ...prev]));
     showToast('Santri Berhasil Ditambahkan', `Santri ${newSantri.nama} (${newSantri.unit}) telah terdaftar di database.`, 'success');
     return { success: true };
   };
@@ -1366,13 +1374,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Silakan login terlebih dahulu.' };
     }
 
+    if (user.role !== 'KASIE_KEPESANTRENAN') {
+      return { success: false, message: 'Akses Ditolak: Hanya Kasie Kepesantrenan / Super Admin yang berwenang mengubah data santri!' };
+    }
+
     const existing = allSantriList.find((s) => s.id === id);
     if (!existing) {
       return { success: false, message: 'Data santri tidak ditemukan.' };
-    }
-
-    if (user.role !== 'KASIE_KEPESANTRENAN' && user.unit !== existing.unit) {
-      return { success: false, message: `Akses Ditolak: Anda (${user.unit}) tidak diizinkan mengubah santri Unit ${existing.unit}!` };
     }
 
     let musyrifNama = existing.musyrifNama;
@@ -1400,24 +1408,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setAllSantriList((prev) =>
-      prev.map((s) => {
-        if (s.id === id) {
-          return {
-            ...s,
-            nis: data.nis.trim(),
-            nama: data.nama.trim().toUpperCase(),
-            kelas: data.kelas.trim(),
-            unit: data.unit,
-            musyrifId: data.musyrifId,
-            musyrifNama,
-            asrama: data.asrama !== undefined ? data.asrama.trim() : s.asrama,
-            kamar: data.kamar !== undefined ? data.kamar.trim() : s.kamar,
-            keterangan: data.keterangan !== undefined ? data.keterangan.trim() : s.keterangan,
-            statusPembinaan: data.statusPembinaan || s.statusPembinaan
-          };
-        }
-        return s;
-      })
+      sortSantriList(
+        prev.map((s) => {
+          if (s.id === id) {
+            return {
+              ...s,
+              nis: data.nis.trim(),
+              nama: data.nama.trim().toUpperCase(),
+              kelas: data.kelas.trim(),
+              unit: data.unit,
+              musyrifId: data.musyrifId,
+              musyrifNama,
+              asrama: data.asrama !== undefined ? data.asrama.trim() : s.asrama,
+              kamar: data.kamar !== undefined ? data.kamar.trim() : s.kamar,
+              keterangan: data.keterangan !== undefined ? data.keterangan.trim() : s.keterangan,
+              statusPembinaan: data.statusPembinaan || s.statusPembinaan
+            };
+          }
+          return s;
+        })
+      )
     );
 
     showToast('Santri Berhasil Diperbarui', `Data santri ${data.nama.toUpperCase()} berhasil disimpan.`, 'success');
@@ -1570,14 +1580,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const latestSantri = await fetchSantriFromDB();
         if (latestSantri && latestSantri.length > 0) {
-          setAllSantriList(latestSantri);
+          setAllSantriList(sortSantriList(latestSantri));
         } else if (dbRes.insertedData && dbRes.insertedData.length > 0) {
-          setAllSantriList((prev) => [...dbRes.insertedData!, ...(prev || [])]);
+          setAllSantriList((prev) => sortSantriList([...dbRes.insertedData!, ...(prev || [])]));
         }
       } catch (fetchErr) {
         console.warn('[REFRESH AFTER IMPORT WARNING]', fetchErr);
         if (dbRes.insertedData && dbRes.insertedData.length > 0) {
-          setAllSantriList((prev) => [...dbRes.insertedData!, ...(prev || [])]);
+          setAllSantriList((prev) => sortSantriList([...dbRes.insertedData!, ...(prev || [])]));
         }
       }
 

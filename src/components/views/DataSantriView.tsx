@@ -7,6 +7,7 @@ import { EditSantriModal } from '../common/EditSantriModal';
 import { DeleteSantriModal } from '../common/DeleteSantriModal';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { exportSantriToExcel, generateSantriExcelTemplate } from '../../lib/excelHelper';
+import { compareKelas } from '../../lib/sortingHelper';
 import {
   Search,
   RotateCcw,
@@ -76,7 +77,9 @@ export const DataSantriView: React.FC = () => {
 
   // Dynamic class options from active santri list
   const classOptions = useMemo(() => {
-    const classes = Array.from(new Set(santriList.map((s) => s.kelas))).filter(Boolean).sort();
+    const classes = Array.from(new Set(santriList.map((s) => s.kelas)))
+      .filter(Boolean)
+      .sort(compareKelas);
     return ['Semua Kelas', ...classes];
   }, [santriList]);
 

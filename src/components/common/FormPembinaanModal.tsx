@@ -364,59 +364,62 @@ export const FormPembinaanModal: React.FC<FormPembinaanModalProps> = ({
 
             {/* BAGIAN BAWAH: TANDA TANGAN 4 KOLOM DENGAN RUANG LEGA UNTUK TTD/PARAF MANUAL */}
             <div className="pt-2 mt-auto">
-              <div className="text-right text-[10.5px] mb-2 font-medium">
-                {officers.kotaTanggal}
-              </div>
-
               <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
                 {/* 1. Santri */}
                 <div className={`flex flex-col justify-between ${signatureBoxHeightClass}`}>
-                  <p className="font-bold">Santri</p>
+                  <div className="flex flex-col items-center justify-end min-h-[38px]">
+                    <p className="font-bold text-[10.5px]">Santri</p>
+                  </div>
                   <div className={signatureGapHeightClass} />
                   <div>
                     <p className="font-bold uppercase text-[10px] break-words line-clamp-2 leading-tight">
                       {santri.nama}
                     </p>
-                    <p className="text-[9px] text-slate-600 mt-0.5">(Nama &amp; Paraf)</p>
+                    <p className="text-[9px] text-slate-500 mt-1">(Nama &amp; Paraf)</p>
                   </div>
                 </div>
 
                 {/* 2. Orang Tua / Wali */}
                 <div className={`flex flex-col justify-between ${signatureBoxHeightClass}`}>
-                  <p className="font-bold">Orang Tua / Wali</p>
+                  <div className="flex flex-col items-center justify-end min-h-[38px]">
+                    <p className="font-bold text-[10.5px]">Orang Tua / Wali</p>
+                  </div>
                   <div className={signatureGapHeightClass} />
                   <div>
                     <p className="font-bold text-[10px] text-slate-800 leading-tight">
                       Orang Tua / Wali Santri
                     </p>
-                    <p className="text-[9px] text-slate-600 mt-0.5">(Nama &amp; Paraf)</p>
+                    <p className="text-[9px] text-slate-500 mt-1">(Nama &amp; Paraf)</p>
                   </div>
                 </div>
 
                 {/* 3. Musyrif / Musyrifah */}
                 <div className={`flex flex-col justify-between ${signatureBoxHeightClass}`}>
-                  <p className="font-bold">Musyrif / Musyrifah</p>
+                  <div className="flex flex-col items-center justify-end min-h-[38px]">
+                    <p className="font-bold text-[10.5px]">Musyrif / Musyrifah</p>
+                  </div>
                   <div className={signatureGapHeightClass} />
                   <div>
                     <p className="font-bold text-[10px] break-words line-clamp-2 leading-tight text-slate-900">
                       {officers.musyrifNama}
                     </p>
-                    <p className="text-[9px] text-slate-600 mt-0.5">(Nama &amp; Paraf)</p>
+                    <p className="text-[9px] text-slate-500 mt-1">(Nama &amp; Paraf)</p>
                   </div>
                 </div>
 
                 {/* 4. Koordinator Unit */}
                 <div className={`flex flex-col justify-between ${signatureBoxHeightClass}`}>
-                  <div>
-                    <p className="text-[9px] font-bold">Mengetahui,</p>
-                    <p className="font-bold leading-tight text-[9.5px]">Koordinator Unit {officers.unitName}</p>
+                  <div className="flex flex-col items-center justify-end min-h-[38px] text-[9.5px]">
+                    <p className="text-[9px] text-slate-700">{officers.kotaTanggal}</p>
+                    <p className="text-[9px] font-normal">Mengetahui,</p>
+                    <p className="font-bold leading-tight text-[10px]">Koordinator Unit {officers.unitName}</p>
                   </div>
                   <div className={signatureGapHeightClass} />
                   <div>
                     <p className="font-bold text-[10px] break-words line-clamp-2 leading-tight text-slate-900">
                       {officers.koordinatorNama}
                     </p>
-                    <p className="text-[9px] text-slate-600 mt-0.5">(Nama &amp; Paraf)</p>
+                    <p className="text-[9px] text-slate-500 mt-1">(Nama &amp; Paraf)</p>
                   </div>
                 </div>
               </div>

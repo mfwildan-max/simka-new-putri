@@ -11,6 +11,7 @@ import {
   exportPelanggaranToExcel, 
   generatePelanggaranExcelTemplate 
 } from '../../lib/excelHelper';
+import { sortMasterPelanggaranList } from '../../lib/sortingHelper';
 import {
   BookOpen,
   Search,
@@ -71,7 +72,7 @@ export const DataPelanggaranView: React.FC = () => {
 
   // Filter list
   const filteredPelanggaran = useMemo(() => {
-    return pelanggaranList.filter((item) => {
+    const filtered = pelanggaranList.filter((item) => {
       const matchSearch =
         item.jenis.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.kode.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -82,6 +83,7 @@ export const DataPelanggaranView: React.FC = () => {
 
       return matchSearch && matchCategory;
     });
+    return sortMasterPelanggaranList(filtered);
   }, [pelanggaranList, searchQuery, selectedCategory]);
 
   const handleDownloadTemplate = () => {

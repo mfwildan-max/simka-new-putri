@@ -13,6 +13,7 @@ import { RiwayatPembinaanView } from './components/views/RiwayatPembinaanView';
 import { LaporanPembinaanView } from './components/views/LaporanPembinaanView';
 import { AkunView } from './components/views/AkunView';
 import { ManajemenUserView } from './components/views/ManajemenUserView';
+import { InputMutabaahView } from './components/views/InputMutabaahView';
 import { LoginView } from './components/views/LoginView';
 import { DetailSantriModal } from './components/common/DetailSantriModal';
 import { DatabaseSettingsModal } from './components/common/DatabaseSettingsModal';
@@ -51,6 +52,8 @@ const AppContent: React.FC = () => {
         return <DataPelanggaranView />;
       case 'catat-pelanggaran':
         return <CatatPelanggaranView />;
+      case 'input-mutabaah':
+        return <InputMutabaahView />;
       case 'data-pembinaan':
         return <DataPembinaanView />;
       case 'riwayat-pembinaan':

@@ -36,14 +36,15 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
   const [formError, setFormError] = useState<string | null>(null);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (santri) {
       setFormData({
-        nis: santri.nis,
-        nama: santri.nama,
-        kelas: santri.kelas,
-        unit: santri.unit,
+        nis: santri.nis || '',
+        nama: santri.nama || '',
+        kelas: santri.kelas || '',
+        unit: santri.unit || 'SMP',
         musyrifId: santri.musyrifId || '',
         asrama: santri.asrama || '',
         kamar: santri.kamar || '',
@@ -53,8 +54,9 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
       setFormError(null);
       setShowConfirmDelete(false);
       setIsDeleting(false);
+      setIsSaving(false);
     }
-  }, [santri]);
+  }, [santri, isOpen]);
 
   const isSuperadmin = user?.role === 'KASIE_KEPESANTRENAN';
 
@@ -67,17 +69,20 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
 
   const santriViolationCount = useMemo(() => {
     if (!santri) return 0;
-    return riwayatList.filter((r) => r.santriId === santri.id || r.santriNama.toLowerCase() === santri.nama.toLowerCase()).length;
+    return riwayatList.filter((r) => r.santriId === santri.id || (r.santriNama && r.santriNama.toLowerCase() === santri.nama.toLowerCase())).length;
   }, [santri, riwayatList]);
 
   if (!isOpen || !santri) return null;
-
-  const [isSaving, setIsSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nis.trim() || !formData.nama.trim() || !formData.kelas.trim()) {
       setFormError('NIS, Nama Santri, dan Kelas wajib diisi.');
+      return;
+    }
+
+    if (!santri.id) {
+      setFormError('ID Santri tidak valid.');
       return;
     }
 

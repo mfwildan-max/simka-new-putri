@@ -1049,7 +1049,7 @@ export async function updateSantriInDB(
   actorUnit?: string
 ): Promise<{ success: boolean; error?: string }> {
   if (actorRole !== 'KASIE_KEPESANTRENAN') {
-    return { success: false, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan / Super Admin yang berwenang mengubah data santri!' };
+    return { success: false, error: 'Anda tidak memiliki hak untuk mengubah data santri.' };
   }
 
   if (!isSupabaseConfigured()) return { success: true };

@@ -21,6 +21,7 @@ export const EditPelanggaranModal: React.FC<EditPelanggaranModalProps> = ({
   const [jenis, setJenis] = useState('');
   const [poin, setPoin] = useState<number>(15);
   const [konsekuensi, setKonsekuensi] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (pelanggaran) {
@@ -28,12 +29,11 @@ export const EditPelanggaranModal: React.FC<EditPelanggaranModalProps> = ({
       setJenis(pelanggaran.jenis || '');
       setPoin(pelanggaran.poin || 15);
       setKonsekuensi(pelanggaran.konsekuensi || '-');
+      setIsSubmitting(false);
     }
-  }, [pelanggaran]);
+  }, [pelanggaran, isOpen]);
 
   if (!isOpen || !pelanggaran) return null;
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -243,16 +243,16 @@ export const DataSantriView: React.FC = () => {
                   <Upload className="w-3.5 h-3.5" />
                   <span>Import Excel</span>
                 </button>
+
+                <button
+                  onClick={handleOpenAddModal}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 font-bold text-xs shadow-md transition-all cursor-pointer shrink-0"
+                >
+                  <UserPlus className="w-4 h-4 text-emerald-700" />
+                  <span>Tambah Santri</span>
+                </button>
               </>
             )}
-
-            <button
-              onClick={handleOpenAddModal}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-emerald-900 hover:bg-emerald-50 font-bold text-xs shadow-md transition-all cursor-pointer shrink-0"
-            >
-              <UserPlus className="w-4 h-4 text-emerald-700" />
-              <span>Tambah Santri</span>
-            </button>
           </div>
         </div>
       </div>
@@ -489,21 +489,23 @@ export const DataSantriView: React.FC = () => {
 
                       <td className="py-2.5 px-3.5 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            title="Edit Data Santri"
-                            onClick={() => setEditingSantri(santri)}
-                            className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
                           {isSuperadmin && (
-                            <button
-                              title="Hapus Santri"
-                              onClick={() => setSantriToDelete(santri)}
-                              className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 dark:border-rose-900/40 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <>
+                              <button
+                                title="Edit Data Santri"
+                                onClick={() => setEditingSantri(santri)}
+                                className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                title="Hapus Santri"
+                                onClick={() => setSantriToDelete(santri)}
+                                className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 dark:border-rose-900/40 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           )}
                           <button
                             title="Lihat Detail Rekam Jejak"
@@ -715,19 +717,22 @@ export const DataSantriView: React.FC = () => {
         </div>
       )}
 
-      {/* Edit & Delete Modal */}
-      <EditSantriModal
-        isOpen={Boolean(editingSantri)}
-        santri={editingSantri}
-        onClose={() => setEditingSantri(null)}
-      />
+      {/* Edit & Delete Modal (Superadmin / Kasie Only) */}
+      {isSuperadmin && (
+        <>
+          <EditSantriModal
+            isOpen={Boolean(editingSantri)}
+            santri={editingSantri}
+            onClose={() => setEditingSantri(null)}
+          />
 
-      {/* Direct Delete Santri & Sample Data Modal */}
-      <DeleteSantriModal
-        isOpen={Boolean(santriToDelete)}
-        santri={santriToDelete}
-        onClose={() => setSantriToDelete(null)}
-      />
+          <DeleteSantriModal
+            isOpen={Boolean(santriToDelete)}
+            santri={santriToDelete}
+            onClose={() => setSantriToDelete(null)}
+          />
+        </>
+      )}
 
       {/* Excel Import Modal */}
       <ErrorBoundary

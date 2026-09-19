@@ -1371,15 +1371,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ): Promise<{ success: boolean; message?: string }> => {
     if (!user) {
+      showToast('Gagal Memperbarui Data Santri', 'Silakan login terlebih dahulu.', 'error');
       return { success: false, message: 'Silakan login terlebih dahulu.' };
     }
 
     if (user.role !== 'KASIE_KEPESANTRENAN') {
-      return { success: false, message: 'Akses Ditolak: Hanya Kasie Kepesantrenan / Super Admin yang berwenang mengubah data santri!' };
+      showToast('Akses Ditolak', 'Anda tidak memiliki hak untuk mengubah data santri.', 'error');
+      return { success: false, message: 'Anda tidak memiliki hak untuk mengubah data santri.' };
     }
 
     const existing = allSantriList.find((s) => s.id === id);
     if (!existing) {
+      showToast('Gagal Memperbarui Data Santri', 'Data santri tidak ditemukan.', 'error');
       return { success: false, message: 'Data santri tidak ditemukan.' };
     }
 
@@ -1404,33 +1407,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     if (!dbRes.success) {
+      showToast('Gagal Memperbarui Data Santri', dbRes.error || 'Gagal memperbarui santri di database.', 'error');
       return { success: false, message: dbRes.error || 'Gagal memperbarui santri di database.' };
     }
 
-    setAllSantriList((prev) =>
-      sortSantriList(
-        prev.map((s) => {
-          if (s.id === id) {
-            return {
-              ...s,
-              nis: data.nis.trim(),
-              nama: data.nama.trim().toUpperCase(),
-              kelas: data.kelas.trim(),
-              unit: data.unit,
-              musyrifId: data.musyrifId,
-              musyrifNama,
-              asrama: data.asrama !== undefined ? data.asrama.trim() : s.asrama,
-              kamar: data.kamar !== undefined ? data.kamar.trim() : s.kamar,
-              keterangan: data.keterangan !== undefined ? data.keterangan.trim() : s.keterangan,
-              statusPembinaan: data.statusPembinaan || s.statusPembinaan
-            };
-          }
-          return s;
-        })
-      )
-    );
+    // Refresh from Supabase if configured to guarantee sync
+    let synced = false;
+    if (isSupabaseConfigured()) {
+      try {
+        const refreshed = await fetchSantriFromDB();
+        if (refreshed && refreshed.length > 0) {
+          const pointMap = new Map<string, number>();
+          allRiwayatList.forEach((r) => {
+            pointMap.set(r.santriId, (pointMap.get(r.santriId) || 0) + (r.poin || 0));
+          });
+          const withPoints = refreshed.map((s) => ({
+            ...s,
+            totalPoin: pointMap.get(s.id) || 0
+          }));
+          const sorted = sortSantriList(withPoints);
+          setAllSantriList(sorted);
+          localStorage.setItem('simka_santri', JSON.stringify(sorted));
+          synced = true;
+        }
+      } catch (err) {
+        console.warn('Re-fetch santri after update error, applying local state update', err);
+      }
+    }
 
-    showToast('Santri Berhasil Diperbarui', `Data santri ${data.nama.toUpperCase()} berhasil disimpan.`, 'success');
+    if (!synced) {
+      setAllSantriList((prev) =>
+        sortSantriList(
+          prev.map((s) => {
+            if (s.id === id) {
+              return {
+                ...s,
+                nis: data.nis.trim(),
+                nama: data.nama.trim().toUpperCase(),
+                kelas: data.kelas.trim(),
+                unit: data.unit,
+                musyrifId: data.musyrifId,
+                musyrifNama,
+                asrama: data.asrama !== undefined ? data.asrama.trim() : s.asrama,
+                kamar: data.kamar !== undefined ? data.kamar.trim() : s.kamar,
+                keterangan: data.keterangan !== undefined ? data.keterangan.trim() : s.keterangan,
+                statusPembinaan: data.statusPembinaan || s.statusPembinaan
+              };
+            }
+            return s;
+          })
+        )
+      );
+    }
+
+    showToast('Data Santri Berhasil Diperbarui', `Data santri ${data.nama.toUpperCase()} berhasil disimpan.`, 'success');
     return { success: true };
   };
 

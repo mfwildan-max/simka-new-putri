@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00A878"/>
+      <stop offset="100%" stop-color="#044734"/>
+    </linearGradient>
+    <linearGradient id="dome-grad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#00E6A8"/>
+      <stop offset="100%" stop-color="#008761"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <rect width="32" height="32" rx="8" fill="url(#bg-grad)"/>
+  
+  <!-- Crescent & Star -->
+  <path d="M16 3C16.8 3 17.5 3.3 18 3.8C17.2 4 16.6 4.7 16.6 5.5C16.6 6.3 17.2 7 18 7.2C17.5 7.7 16.8 8 16 8C14.6 8 13.5 6.9 13.5 5.5C13.5 4.1 14.6 3 16 3Z" fill="#F4B942"/>
+  
+  <!-- Dome -->
+  <path d="M16 8C12.5 8 10 11 10 15H22C22 11 19.5 8 16 8Z" fill="url(#dome-grad)"/>
+  <path d="M16 9.5C13.8 9.5 12 11.7 12 15H20C20 11.7 18.2 9.5 16 9.5Z" stroke="#F4B942" stroke-width="0.8" fill="none"/>
+  
+  <!-- Minarets -->
+  <path d="M5.5 8.5L6.5 7L7.5 8.5V19H5.5V8.5Z" fill="#F4B942"/>
+  <path d="M4.5 19H8.5V26H4.5V19Z" fill="#006C4E"/>
+  <path d="M24.5 8.5L25.5 7L26.5 8.5V19H24.5V8.5Z" fill="#F4B942"/>
+  <path d="M23.5 19H27.5V26H23.5V19Z" fill="#006C4E"/>
+  
+  <!-- Main building -->
+  <path d="M8.5 15H23.5V26H8.5V15Z" fill="#008761"/>
+  
+  <!-- Central Arch / Mihrab -->
+  <path d="M13.5 26V20.5C13.5 19.1 14.6 18 16 18C17.4 18 18.5 19.1 18.5 20.5V26H13.5Z" fill="#031F17" stroke="#F4B942" stroke-width="0.8"/>
+  
+  <!-- Base line -->
+  <path d="M3 26H29" stroke="#F4B942" stroke-width="1.2" stroke-linecap="round"/>
+</svg>

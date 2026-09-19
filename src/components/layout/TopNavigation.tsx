@@ -175,32 +175,34 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ onOpenSidebar }) =
               <span>T.A 2026/2027</span>
             </div>
 
-            {/* Database / Supabase Sync Status Button */}
-            <button
-              onClick={openDatabaseModal}
-              title="Pengaturan & Status Database Supabase"
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer ${
-                isOfflineMode
-                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-300 hover:bg-amber-100'
-                  : isSupabaseOnline
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100'
-                  : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-300 hover:bg-rose-100'
-              }`}
-            >
-              <Database className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">
-                {isOfflineMode ? 'Mode Offline' : isSupabaseOnline ? 'Supabase Sync' : 'Setup DB'}
-              </span>
-              <span
-                className={`w-1.5 h-1.5 rounded-full ${
+            {/* Database / Supabase Sync Status Button (Kasie Only) */}
+            {user?.role === 'KASIE_KEPESANTRENAN' && (
+              <button
+                onClick={openDatabaseModal}
+                title="Pengaturan & Status Database Supabase"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer ${
                   isOfflineMode
-                    ? 'bg-amber-500'
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-300 hover:bg-amber-100'
                     : isSupabaseOnline
-                    ? 'bg-emerald-500 animate-pulse'
-                    : 'bg-rose-500 animate-ping'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100'
+                    : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-300 hover:bg-rose-100'
                 }`}
-              />
-            </button>
+              >
+                <Database className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">
+                  {isOfflineMode ? 'Mode Offline' : isSupabaseOnline ? 'Supabase Sync' : 'Setup DB'}
+                </span>
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    isOfflineMode
+                      ? 'bg-amber-500'
+                      : isSupabaseOnline
+                      ? 'bg-emerald-500 animate-pulse'
+                      : 'bg-rose-500 animate-ping'
+                  }`}
+                />
+              </button>
+            )}
 
             {/* Theme Switcher */}
             <ThemeSwitcher />

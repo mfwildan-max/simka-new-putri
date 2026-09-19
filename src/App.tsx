@@ -18,6 +18,7 @@ import { DetailSantriModal } from './components/common/DetailSantriModal';
 import { DatabaseSettingsModal } from './components/common/DatabaseSettingsModal';
 import { ToastContainer } from './components/common/Toast';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { canRoleAccessRoute, getDefaultRouteForRole } from './lib/auth';
 
 const AppContent: React.FC = () => {
   const { currentRoute, isAuthenticated, user, isDatabaseModalOpen, closeDatabaseModal, refreshData } = useApp();
@@ -34,7 +35,11 @@ const AppContent: React.FC = () => {
   }
 
   const renderActiveView = () => {
-    switch (currentRoute) {
+    // Route guard check: if user cannot access currentRoute, redirect to allowed default
+    const isAllowed = canRoleAccessRoute(user.role, currentRoute);
+    const activeRoute = isAllowed ? currentRoute : getDefaultRouteForRole(user.role);
+
+    switch (activeRoute) {
       case 'dashboard':
         return <DashboardView />;
       case 'rekap-pelanggaran':
@@ -57,7 +62,7 @@ const AppContent: React.FC = () => {
       case 'akun':
         return <AkunView />;
       default:
-        return <DashboardView />;
+        return user.role === 'MUSYRIF' ? <RekapPelanggaranView /> : <DashboardView />;
     }
   };
 

@@ -502,6 +502,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (dbUsers !== null && dbUsers.length > 0) {
         setUsersList(dbUsers);
         localStorage.setItem('simka_users', JSON.stringify(dbUsers));
+
+        // Keep current logged-in user profile & unit in sync with Supabase
+        setUser((currentUser) => {
+          if (!currentUser) return null;
+          const fresh = dbUsers.find(
+            (u) => (u.id && u.id === currentUser.id) || (u.username && u.username.toLowerCase() === currentUser.username.toLowerCase())
+          );
+          if (fresh) {
+            const updated: UserAccount = {
+              ...currentUser,
+              nama: fresh.nama,
+              username: fresh.username,
+              role: fresh.role,
+              unit: fresh.unit,
+              is_active: fresh.is_active
+            };
+            if (localStorage.getItem('simka_session')) {
+              localStorage.setItem('simka_session', JSON.stringify(updated));
+            } else if (sessionStorage.getItem('simka_session')) {
+              sessionStorage.setItem('simka_session', JSON.stringify(updated));
+            }
+            return updated;
+          }
+          return currentUser;
+        });
       }
 
       if (dbPembinaan !== null) {
@@ -1084,6 +1109,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!res.success) {
       return { success: false, message: res.error || 'Gagal memperbarui user di database.' };
     }
+
+    // Refresh live database data to sync all components
+    await refreshData();
 
     setUsersList((prev) =>
       prev.map((u) => {

@@ -18,7 +18,14 @@ import {
   initialRiwayatPelanggaran,
   initialPembinaanRecords
 } from '../data/mockData';
-import { hashPassword, verifyPassword, mapJabatanToRole, mapUnit } from './auth';
+import { 
+  hashPassword, 
+  verifyPassword, 
+  mapJabatanToRole, 
+  mapUnit, 
+  normalizeUnitForDB, 
+  normalizeJabatanForDB 
+} from './auth';
 
 export const STORAGE_KEY_SUPABASE_URL = 'SIMKA_SUPABASE_URL';
 export const STORAGE_KEY_SUPABASE_KEY = 'SIMKA_SUPABASE_ANON_KEY';
@@ -771,34 +778,60 @@ export async function updateUserInDB(
     nama: string;
     username: string;
     role: UserRole;
-    unit: 'ALL' | UnitPesantren;
+    unit: 'ALL' | UnitPesantren | string;
     is_active?: boolean;
     email?: string;
     title?: string;
   },
   actorRole?: UserRole
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; data?: UserAccount; error?: string }> {
   if (actorRole !== 'KASIE_KEPESANTRENAN') {
-    return { success: false, error: 'Akses Ditolak: Hanya Kasie yang berwenang mengubah user.' };
+    return { success: false, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang mengubah user.' };
   }
   if (!isSupabaseConfigured()) return { success: true };
 
   try {
-    const { error } = await supabase
+    const normalizedJabatan = normalizeJabatanForDB(userItem.role);
+    const normalizedUnit = normalizeUnitForDB(userItem.unit);
+
+    const updatePayload = {
+      nama: userItem.nama.trim(),
+      username: userItem.username.toLowerCase().trim(),
+      jabatan: normalizedJabatan,
+      unit: normalizedUnit,
+      is_active: userItem.is_active !== false
+    };
+
+    const { data, error } = await supabase
       .from('users')
-      .update({
-        nama: userItem.nama,
-        username: userItem.username.toLowerCase().trim(),
-        jabatan: userItem.role,
-        unit: userItem.unit,
-        is_active: userItem.is_active !== false
-      })
-      .eq('id', userId);
+      .update(updatePayload)
+      .eq('id', userId)
+      .select('id, nama, username, password, jabatan, unit, is_active, created_at');
 
     if (error) {
       console.error('[UPDATE USER ERROR]', error);
       return { success: false, error: translateSupabaseError(error) };
     }
+
+    if (data && data.length > 0) {
+      const row = data[0];
+      const mappedRole = mapJabatanToRole(row.jabatan);
+      const mappedUnit = mapUnit(row.unit, mappedRole);
+      return {
+        success: true,
+        data: {
+          id: row.id,
+          nama: row.nama,
+          username: row.username,
+          password_hash: row.password,
+          role: mappedRole,
+          unit: mappedUnit,
+          is_active: row.is_active !== false,
+          created_at: row.created_at
+        }
+      };
+    }
+
     return { success: true };
   } catch (err: any) {
     return { success: false, error: translateSupabaseError(err) };

@@ -125,8 +125,8 @@ export function can(user: UserAccount | null | undefined, permission: AppPermiss
 
   switch (permission) {
     case 'view_dashboard':
-      // Musyrif, Koordinator, Kasie/Kabid can all view Dashboard (scoped to their unit)
-      return true;
+      // ONLY KOORDINATOR and KASIE_KEPESANTRENAN can view Dashboard. MUSYRIF is STRICTLY forbidden.
+      return user.role === 'KOORDINATOR' || user.role === 'KASIE_KEPESANTRENAN';
 
     case 'view_students':
       return true;
@@ -222,7 +222,8 @@ export function mapJabatanToRole(jabatan?: string | null): UserRole {
 }
 
 /**
- * Normalizes unit string to standard 'ALL' | UnitPesantren
+ * Normalizes unit string to standard 'ALL' | UnitPesantren.
+ * CRITICAL: Checks 'SMA' before 'MA' because 'SMA' contains the substring 'MA'.
  */
 export function mapUnit(unit?: string | null, role?: UserRole): 'ALL' | UnitPesantren {
   if (role === 'KASIE_KEPESANTRENAN') {
@@ -230,10 +231,31 @@ export function mapUnit(unit?: string | null, role?: UserRole): 'ALL' | UnitPesa
   }
   if (!unit) return 'SMP';
   const clean = unit.toUpperCase().trim();
-  if (clean === 'MA' || clean.includes('MA')) return 'MA';
+  if (clean === 'ALL' || clean.includes('SEMUA') || clean.includes('GLOBAL')) return 'ALL';
   if (clean === 'SMA' || clean.includes('SMA')) return 'SMA';
+  if (clean === 'MA' || clean.includes('MA')) return 'MA';
   if (clean === 'SMP' || clean.includes('SMP')) return 'SMP';
   return 'SMP';
+}
+
+/**
+ * Normalizes raw UI or input value to standard database unit string: SMP | MA | SMA | ALL
+ */
+export function normalizeUnitForDB(unit?: string | null): 'SMP' | 'MA' | 'SMA' | 'ALL' {
+  if (!unit) return 'SMP';
+  const clean = unit.toUpperCase().trim();
+  if (clean === 'ALL' || clean.includes('SEMUA') || clean.includes('GLOBAL')) return 'ALL';
+  if (clean === 'SMA' || clean.includes('SMA')) return 'SMA';
+  if (clean === 'MA' || clean.includes('MA')) return 'MA';
+  if (clean === 'SMP' || clean.includes('SMP')) return 'SMP';
+  return 'SMP';
+}
+
+/**
+ * Normalizes raw UI or input value to standard database jabatan string: MUSYRIF | KOORDINATOR | KASIE_KEPESANTRENAN
+ */
+export function normalizeJabatanForDB(roleOrJabatan?: string | null): 'MUSYRIF' | 'KOORDINATOR' | 'KASIE_KEPESANTRENAN' {
+  return mapJabatanToRole(roleOrJabatan);
 }
 
 /**
@@ -246,12 +268,12 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
 
   switch (role) {
     case 'MUSYRIF':
-      // Musyrif has Dashboard, Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master), Akun Saya
+      // Musyrif has: Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master), Akun Saya.
+      // Dashboard is STRICTLY FORBIDDEN.
       return (
-        route === 'dashboard' ||
+        route === 'rekap-pelanggaran' ||
         route === 'data-santri' ||
         route === 'catat-pelanggaran' ||
-        route === 'rekap-pelanggaran' ||
         route === 'data-pelanggaran' ||
         route === 'kamus-pelanggaran' ||
         route === 'data-pembinaan' ||
@@ -259,12 +281,12 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
       );
 
     case 'KOORDINATOR':
-      // Koordinator has Dashboard, Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master), Akun Saya
+      // Koordinator has: Dashboard (locked to unit), Rekap, Data Santri, Catat, Master Pelanggaran, Pembinaan, Akun Saya
       return (
         route === 'dashboard' ||
+        route === 'rekap-pelanggaran' ||
         route === 'data-santri' ||
         route === 'catat-pelanggaran' ||
-        route === 'rekap-pelanggaran' ||
         route === 'data-pelanggaran' ||
         route === 'kamus-pelanggaran' ||
         route === 'data-pembinaan' ||
@@ -283,8 +305,11 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
 
 /**
  * Returns default landing page for a role after successful login.
- * All roles start on the Dashboard!
+ * Musyrif starts on Rekap Pelanggaran; Koordinator & Kasie start on Dashboard.
  */
-export function getDefaultRouteForRole(_role: UserRole): PageRoute {
+export function getDefaultRouteForRole(role: UserRole): PageRoute {
+  if (role === 'MUSYRIF') {
+    return 'rekap-pelanggaran';
+  }
   return 'dashboard';
 }

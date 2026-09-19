@@ -25,19 +25,23 @@ export const AkunView: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
 
-    const res = updateUserPassword(oldPassword, newPassword, confirmPassword);
-    if (res.success) {
-      setSuccessMsg(res.message);
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    } else {
-      setErrorMsg(res.message);
+    try {
+      const res = await updateUserPassword(oldPassword, newPassword, confirmPassword);
+      if (res.success) {
+        setSuccessMsg(res.message);
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setErrorMsg(res.message);
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Terjadi kesalahan sistem saat memperbarui kata sandi.');
     }
   };
 

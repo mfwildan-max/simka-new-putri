@@ -25,21 +25,21 @@ export const STORAGE_KEY_SUPABASE_KEY = 'SIMKA_SUPABASE_ANON_KEY';
 export const STORAGE_KEY_OFFLINE_MODE = 'SIMKA_SUPABASE_OFFLINE_MODE';
 
 export function getActiveSupabaseConfig(): { url: string; anonKey: string; isCustom: boolean; offlineMode: boolean } {
-  const customUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_SUPABASE_URL) || '' : '';
-  const customKey = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_SUPABASE_KEY) || '' : '';
+  const customUrl = typeof window !== 'undefined' ? (localStorage.getItem(STORAGE_KEY_SUPABASE_URL) || '').trim().replace(/^["']|["']$/g, '') : '';
+  const customKey = typeof window !== 'undefined' ? (localStorage.getItem(STORAGE_KEY_SUPABASE_KEY) || '').trim().replace(/^["']|["']$/g, '') : '';
   const offlineMode = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_OFFLINE_MODE) === 'true' : false;
 
   const env = (import.meta as any).env || {};
-  const envUrl = env.VITE_SUPABASE_URL || '';
-  const envKey = env.VITE_SUPABASE_ANON_KEY || '';
+  const envUrl = (env.VITE_SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL || '').trim().replace(/^["']|["']$/g, '');
+  const envKey = (env.VITE_SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || '').trim().replace(/^["']|["']$/g, '');
 
-  const url = (customUrl.trim() || envUrl.trim());
-  const anonKey = (customKey.trim() || envKey.trim());
+  const url = customUrl || envUrl;
+  const anonKey = customKey || envKey;
 
   return {
     url,
     anonKey,
-    isCustom: Boolean(customUrl.trim() || customKey.trim()),
+    isCustom: Boolean(customUrl || customKey),
     offlineMode
   };
 }
@@ -68,13 +68,16 @@ export function getSupabaseClient() {
 
 export function saveCustomSupabaseConfig(url: string, anonKey: string): void {
   if (typeof window === 'undefined') return;
-  if (url.trim()) {
-    localStorage.setItem(STORAGE_KEY_SUPABASE_URL, url.trim());
+  const cleanUrl = url.trim().replace(/^["']|["']$/g, '');
+  const cleanKey = anonKey.trim().replace(/^["']|["']$/g, '');
+
+  if (cleanUrl) {
+    localStorage.setItem(STORAGE_KEY_SUPABASE_URL, cleanUrl);
   } else {
     localStorage.removeItem(STORAGE_KEY_SUPABASE_URL);
   }
-  if (anonKey.trim()) {
-    localStorage.setItem(STORAGE_KEY_SUPABASE_KEY, anonKey.trim());
+  if (cleanKey) {
+    localStorage.setItem(STORAGE_KEY_SUPABASE_KEY, cleanKey);
   } else {
     localStorage.removeItem(STORAGE_KEY_SUPABASE_KEY);
   }
@@ -108,22 +111,36 @@ export function isSupabaseConfigured(): boolean {
 
 export function translateSupabaseError(error: any): string {
   if (!error) return 'Terjadi kesalahan sistem yang tidak diketahui.';
-  const msg = typeof error === 'string' ? error : error.message || error.error_description || JSON.stringify(error);
+  console.error('[SIMKA.ID DB Error Details]:', error);
 
-  if (msg.includes('Invalid API key') || msg.includes('JWT') || msg.includes('apikey') || msg.includes('unauthorized') || msg.includes('401')) {
-    return 'Kunci API Supabase (anon key) tidak valid atau kedaluwarsa. Periksa kredensial di menu Pengaturan Database.';
+  const msg = typeof error === 'string' 
+    ? error 
+    : error.message || error.error_description || error.details || error.hint || JSON.stringify(error);
+
+  if (
+    msg.includes('Invalid API key') || 
+    msg.includes('invalid api key') || 
+    msg.includes('JWT') || 
+    msg.includes('apikey') || 
+    msg.includes('unauthorized') || 
+    msg.includes('401')
+  ) {
+    return 'Kunci Anon API Supabase tidak valid (Invalid Supabase Anon Key). Pastikan menyalin "anon public" key dari Supabase Dashboard (Project Settings > API) ke Vercel Environment Variables (VITE_SUPABASE_ANON_KEY) atau di menu Database SIMKA.ID. (Catatan: SIMKA.ID menggunakan Supabase, bukan Gemini API).';
   }
-  if (msg.includes('relation') && msg.includes('does not exist')) {
-    return 'Tabel database di Supabase belum dibuat. Silakan salin & jalankan skrip SQL migrasi di Supabase SQL Editor melalui menu Pengaturan Database.';
+  if (msg.includes('relation') && (msg.includes('does not exist') || msg.includes('tidak ditemukan'))) {
+    return 'Tabel database di Supabase belum dibuat. Silakan buka Supabase Dashboard > SQL Editor, salin dan jalankan skrip SQL skema lengkap dari menu Database di SIMKA.ID.';
   }
-  if (msg.includes('row-level security') || msg.includes('RLS') || msg.includes('policy')) {
-    return 'Akses database dibatasi oleh kebijakan RLS Supabase. Pastikan tabel memiliki izin SELECT/INSERT/UPDATE untuk role anon.';
+  if (msg.includes('row-level security') || msg.includes('RLS') || msg.includes('policy') || msg.includes('permission denied')) {
+    return 'Akses database dibatasi oleh kebijakan RLS Supabase. Pastikan Policy "Public Anon Access" sudah diaktifkan di Supabase SQL Editor.';
   }
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch failed')) {
-    return 'Gagal terhubung ke server database Supabase. Periksa koneksi internet atau status URL proyek Supabase.';
+    return 'Gagal terhubung ke server database Supabase. Periksa koneksi internet atau status URL proyek Supabase di Vercel.';
   }
   if (msg.includes('duplicate key') || msg.includes('unique constraint') || msg.includes('already exists')) {
-    return 'Data dengan kode atau username yang sama sudah terdaftar di database.';
+    return 'Data dengan NIS, kode, atau username tersebut sudah terdaftar di database.';
+  }
+  if (msg.includes('violates foreign key')) {
+    return 'Data relasi (santri/pelanggaran/musyrif) tidak ditemukan di database.';
   }
   return msg;
 }
@@ -234,25 +251,55 @@ export async function testSupabaseConnection(customUrl?: string, customKey?: str
   }
 }
 
+// Helper to create a chainable query proxy when Supabase client is unconfigured or offline
+function createDummyQueryBuilder(errPayload: { data: null; error: { message: string } }) {
+  const handler: ProxyHandler<any> = {
+    get(_target, prop) {
+      if (prop === 'then') {
+        return (resolve: (val: any) => void) => resolve(errPayload);
+      }
+      if (prop === 'catch') {
+        return () => Promise.resolve(errPayload);
+      }
+      if (prop === 'finally') {
+        return (cb: () => void) => {
+          cb();
+          return Promise.resolve(errPayload);
+        };
+      }
+      return (..._args: any[]) => new Proxy(() => {}, handler);
+    },
+    apply() {
+      return new Proxy(() => {}, handler);
+    }
+  };
+  return new Proxy(() => {}, handler);
+}
+
 // Proxied supabase accessor for backward-compatible call syntax
 export const supabase = {
   from(table: string) {
     const client = getSupabaseClient();
     if (!client) {
-      return {
-        select: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } }),
-        insert: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } }),
-        update: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } }),
-        delete: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } }),
-        upsert: () => Promise.resolve({ data: null, error: { message: 'Database client tidak aktif atau dalam mode offline.' } })
-      } as any;
+      const errPayload = {
+        data: null,
+        error: {
+          message: 'Database Supabase belum terhubung. Pastikan telah mengisi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY di Vercel Environment Variables atau melalui menu Pengaturan Database SIMKA.ID.'
+        }
+      };
+      return createDummyQueryBuilder(errPayload);
     }
     return client.from(table);
   },
   rpc(fn: string, args?: any) {
     const client = getSupabaseClient();
     if (!client) {
-      return Promise.resolve({ data: null, error: { message: 'Database client tidak aktif.' } }) as any;
+      return Promise.resolve({
+        data: null,
+        error: {
+          message: 'Database Supabase belum terhubung. Pastikan telah mengisi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY.'
+        }
+      }) as any;
     }
     return client.rpc(fn, args);
   }
@@ -277,17 +324,18 @@ export function isValidUUID(id?: string | null): boolean {
 
 // ==============================================================================
 // 1. USERS & AUTHENTICATION (public.users)
+// SCHEMA AKTUAL: id, nama, username, password, jabatan, unit, is_active, created_at
 // ==============================================================================
 
 /**
  * Fetch all users from Supabase public.users table.
  */
 export async function fetchUsersFromDB(): Promise<UserAccount[] | null> {
-  if (!supabase) return null;
+  if (!isSupabaseConfigured()) return null;
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('id, nama, username, password_hash, role, unit, is_active, email, title, created_at, updated_at')
+      .select('id, nama, username, password, jabatan, unit, is_active, created_at')
       .order('created_at', { ascending: true });
 
     if (error || !data) {
@@ -299,14 +347,11 @@ export async function fetchUsersFromDB(): Promise<UserAccount[] | null> {
       id: String(row.id),
       nama: String(row.nama || ''),
       username: String(row.username || ''),
-      password_hash: row.password_hash || '',
-      role: row.role as UserRole,
-      unit: row.unit as 'ALL' | UnitPesantren,
-      is_active: Boolean(row.is_active),
-      email: row.email || undefined,
-      title: row.title || undefined,
-      created_at: row.created_at,
-      updated_at: row.updated_at
+      password_hash: row.password || '',
+      role: (row.jabatan || 'MUSYRIF') as UserRole,
+      unit: (row.unit || 'SMP') as 'ALL' | UnitPesantren,
+      is_active: row.is_active !== false,
+      created_at: row.created_at
     }));
   } catch (err: any) {
     logAuthDebug('Exception fetching users from Supabase:', err?.message);
@@ -315,8 +360,8 @@ export async function fetchUsersFromDB(): Promise<UserAccount[] | null> {
 }
 
 /**
- * Custom Simple Login via Supabase RPC / public.users table or Local Authenticated Store.
- * Returns UserAccount without exposing password_hash.
+ * Custom Simple Login via Supabase public.users table or Local Authenticated Store.
+ * Returns UserAccount without exposing password.
  */
 export async function authenticateUser(
   usernameInput: string,
@@ -330,51 +375,23 @@ export async function authenticateUser(
     return { success: false, message: 'Username dan kata sandi wajib diisi.' };
   }
 
-  // 1. Check Supabase connection and try RPC or direct public.users lookup
+  // 1. Check Supabase connection and query public.users table
   if (supabase) {
-    logAuthDebug('Supabase client detected. Querying backend...');
+    logAuthDebug('Supabase client detected. Querying public.users...');
     try {
-      // 1A. Attempt RPC login_user if defined in database
-      const { data: rpcData, error: rpcError } = await supabase.rpc('login_user', {
-        p_username: cleanUsername,
-        p_password: passwordInput
-      });
-
-      if (!rpcError && rpcData) {
-        logAuthDebug('RPC login_user response received:', rpcData);
-        if (rpcData.success && rpcData.user) {
-          return {
-            success: true,
-            user: {
-              id: String(rpcData.user.id),
-              nama: rpcData.user.nama,
-              username: rpcData.user.username,
-              role: rpcData.user.role,
-              unit: rpcData.user.unit,
-              is_active: Boolean(rpcData.user.is_active),
-              email: rpcData.user.email,
-              title: rpcData.user.title
-            }
-          };
-        } else if (rpcData.message) {
-          return { success: false, message: rpcData.message };
-        }
-      }
-
-      // 1B. Direct query on public.users table
       const { data: dbUser, error: queryError } = await supabase
         .from('users')
-        .select('id, nama, username, password_hash, role, unit, is_active, email, title')
+        .select('id, nama, username, password, jabatan, unit, is_active, created_at')
         .ilike('username', cleanUsername)
         .maybeSingle();
 
       if (!queryError && dbUser) {
-        logAuthDebug('User record found in public.users:', { id: dbUser.id, username: dbUser.username, role: dbUser.role });
-        if (!dbUser.is_active) {
+        logAuthDebug('User record found in public.users:', { id: dbUser.id, username: dbUser.username, jabatan: dbUser.jabatan });
+        if (dbUser.is_active === false) {
           return { success: false, message: 'Akun tidak aktif. Hubungi administrator yayasan.' };
         }
 
-        const isValid = await verifyPassword(passwordInput, dbUser.password_hash);
+        const isValid = await verifyPassword(passwordInput, dbUser.password);
         if (isValid) {
           return {
             success: true,
@@ -382,11 +399,9 @@ export async function authenticateUser(
               id: String(dbUser.id),
               nama: dbUser.nama,
               username: dbUser.username,
-              role: dbUser.role,
-              unit: dbUser.unit,
-              is_active: Boolean(dbUser.is_active),
-              email: dbUser.email,
-              title: dbUser.title
+              role: (dbUser.jabatan || 'MUSYRIF') as UserRole,
+              unit: (dbUser.unit || 'SMP') as 'ALL' | UnitPesantren,
+              is_active: Boolean(dbUser.is_active)
             }
           };
         } else {
@@ -430,9 +445,7 @@ export async function authenticateUser(
       username: foundUser.username,
       role: foundUser.role,
       unit: foundUser.unit,
-      is_active: Boolean(foundUser.is_active),
-      email: foundUser.email,
-      title: foundUser.title
+      is_active: Boolean(foundUser.is_active)
     }
   };
 }
@@ -453,7 +466,7 @@ export async function insertUserToDB(
   if (actorRole !== 'KASIE_KEPESANTRENAN') {
     return { success: false, error: 'Akses Ditolak: Hanya Kasie yang berwenang menambah user.' };
   }
-  if (!supabase) {
+  if (!isSupabaseConfigured()) {
     return {
       success: true,
       data: {
@@ -463,8 +476,6 @@ export async function insertUserToDB(
         role: userItem.role,
         unit: userItem.unit,
         is_active: userItem.is_active !== false,
-        email: userItem.email,
-        title: userItem.title,
         password_hash: userItem.password_hash,
         created_at: new Date().toISOString()
       }
@@ -475,23 +486,21 @@ export async function insertUserToDB(
     const payload = {
       nama: userItem.nama,
       username: userItem.username.toLowerCase().trim(),
-      password_hash: userItem.password_hash,
-      role: userItem.role,
+      password: userItem.password_hash,
+      jabatan: userItem.role,
       unit: userItem.unit,
-      is_active: userItem.is_active !== false,
-      email: userItem.email,
-      title: userItem.title
+      is_active: userItem.is_active !== false
     };
 
     const { data, error } = await supabase
       .from('users')
       .insert([payload])
-      .select('id, nama, username, role, unit, is_active, email, title, created_at, updated_at')
+      .select('id, nama, username, password, jabatan, unit, is_active, created_at')
       .single();
 
     if (error) {
       console.error('[INSERT USER ERROR]', error);
-      return { success: false, error: error.message };
+      return { success: false, error: translateSupabaseError(error) };
     }
 
     return {
@@ -500,18 +509,15 @@ export async function insertUserToDB(
         id: String(data.id),
         nama: data.nama,
         username: data.username,
-        role: data.role as UserRole,
-        unit: data.unit as 'ALL' | UnitPesantren,
+        role: (data.jabatan || userItem.role) as UserRole,
+        unit: (data.unit || userItem.unit) as 'ALL' | UnitPesantren,
         is_active: Boolean(data.is_active),
-        email: data.email,
-        title: data.title,
-        password_hash: userItem.password_hash,
-        created_at: data.created_at,
-        updated_at: data.updated_at
+        password_hash: data.password || userItem.password_hash,
+        created_at: data.created_at
       }
     };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal menyimpan user ke database.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -531,7 +537,7 @@ export async function updateUserInDB(
   if (actorRole !== 'KASIE_KEPESANTRENAN') {
     return { success: false, error: 'Akses Ditolak: Hanya Kasie yang berwenang mengubah user.' };
   }
-  if (!supabase) return { success: true };
+  if (!isSupabaseConfigured()) return { success: true };
 
   try {
     const { error } = await supabase
@@ -539,21 +545,19 @@ export async function updateUserInDB(
       .update({
         nama: userItem.nama,
         username: userItem.username.toLowerCase().trim(),
-        role: userItem.role,
+        jabatan: userItem.role,
         unit: userItem.unit,
-        is_active: userItem.is_active !== false,
-        email: userItem.email,
-        title: userItem.title,
-        updated_at: new Date().toISOString()
+        is_active: userItem.is_active !== false
       })
       .eq('id', userId);
 
     if (error) {
-      return { success: false, error: error.message };
+      console.error('[UPDATE USER ERROR]', error);
+      return { success: false, error: translateSupabaseError(error) };
     }
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal memperbarui user di database.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -564,7 +568,7 @@ export async function deleteUserFromDB(
   if (actorRole !== 'KASIE_KEPESANTRENAN') {
     return { success: false, error: 'Akses Ditolak: Hanya Kasie yang berwenang menghapus user.' };
   }
-  if (!supabase) return { success: true };
+  if (!isSupabaseConfigured()) return { success: true };
 
   try {
     const { error } = await supabase
@@ -573,11 +577,12 @@ export async function deleteUserFromDB(
       .eq('id', userId);
 
     if (error) {
-      return { success: false, error: error.message };
+      console.error('[DELETE USER ERROR]', error);
+      return { success: false, error: translateSupabaseError(error) };
     }
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal menghapus user dari database.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -589,18 +594,18 @@ export async function toggleUserActiveInDB(
   if (actorRole !== 'KASIE_KEPESANTRENAN') {
     return { success: false, error: 'Akses Ditolak: Hanya Kasie yang berwenang mengubah status user.' };
   }
-  if (!supabase) return { success: true };
+  if (!isSupabaseConfigured()) return { success: true };
 
   try {
     const { error } = await supabase
       .from('users')
-      .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      .update({ is_active: isActive })
       .eq('id', userId);
 
-    if (error) return { success: false, error: error.message };
+    if (error) return { success: false, error: translateSupabaseError(error) };
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal mengubah status user.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -612,35 +617,35 @@ export async function resetUserPasswordInDB(
   if (actorRole !== 'KASIE_KEPESANTRENAN') {
     return { success: false, error: 'Akses Ditolak: Hanya Kasie yang berwenang mereset password user.' };
   }
-  if (!supabase) return { success: true };
+  if (!isSupabaseConfigured()) return { success: true };
 
   try {
     const { error } = await supabase
       .from('users')
-      .update({ password_hash: newPasswordHash, updated_at: new Date().toISOString() })
+      .update({ password: newPasswordHash })
       .eq('id', userId);
 
-    if (error) return { success: false, error: error.message };
+    if (error) return { success: false, error: translateSupabaseError(error) };
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal mereset password di database.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
 // ==============================================================================
 // 2. DATA SANTRI (public.santri)
+// SCHEMA AKTUAL: id, kode_santri, nama, kelas, unit, musyrif, asrama, status_pembinaan, created_at
 // ==============================================================================
 
 /**
  * Fetch all santri records from Supabase public.santri table.
- * Supports flexible column naming (kode_santri or nis, total_poin or totalPoin).
  */
 export async function fetchSantriFromDB(): Promise<Santri[] | null> {
-  if (!supabase) return null;
+  if (!isSupabaseConfigured()) return null;
   try {
     const { data, error } = await supabase
       .from('santri')
-      .select('*')
+      .select('id, kode_santri, nama, kelas, unit, musyrif, asrama, status_pembinaan, created_at')
       .order('nama', { ascending: true });
 
     if (error || !data) {
@@ -648,21 +653,18 @@ export async function fetchSantriFromDB(): Promise<Santri[] | null> {
       return null;
     }
 
-    logAuthDebug(`Fetched ${data.length} santri records from public.santri in Supabase.`);
+    logAuthDebug(`Fetched ${data.length} records from public.santri in Supabase.`);
 
     return data.map((row: any) => ({
       id: String(row.id),
-      nis: String(row.kode_santri || row.nis || row.id || ''),
+      nis: String(row.kode_santri || ''),
       nama: String(row.nama || '').toUpperCase(),
       kelas: String(row.kelas || ''),
       unit: (row.unit as UnitPesantren) || 'SMP',
-      totalPoin: Number(row.total_poin ?? row.totalPoin ?? 0),
-      statusPembinaan: row.status_pembinaan || row.statusPembinaan || 'Baik',
-      musyrifId: row.musyrif_id || row.musyrifId || undefined,
-      musyrifNama: row.musyrif_nama || row.musyrifNama || undefined,
-      asrama: row.asrama || undefined,
-      kamar: row.kamar || undefined,
-      keterangan: row.keterangan || undefined
+      totalPoin: 0, // Will be computed from violation logs
+      statusPembinaan: row.status_pembinaan || 'Baik',
+      musyrifNama: row.musyrif || undefined,
+      asrama: row.asrama || undefined
     }));
   } catch (err: any) {
     logAuthDebug('Exception fetching santri from Supabase:', err?.message);
@@ -679,11 +681,8 @@ export async function insertSantriToDB(
     nama: string;
     kelas: string;
     unit: UnitPesantren;
-    musyrifId?: string;
     musyrifNama?: string;
     asrama?: string;
-    kamar?: string;
-    keterangan?: string;
     statusPembinaan?: Santri['statusPembinaan'];
   },
   actorRole?: UserRole,
@@ -693,7 +692,7 @@ export async function insertSantriToDB(
     return { success: false, error: `Akses Ditolak: Anda (${actorUnit}) tidak berwenang menambah santri Unit ${santriData.unit}!` };
   }
 
-  if (!supabase) {
+  if (!isSupabaseConfigured()) {
     return {
       success: true,
       data: {
@@ -704,63 +703,51 @@ export async function insertSantriToDB(
         unit: santriData.unit,
         totalPoin: 0,
         statusPembinaan: santriData.statusPembinaan || 'Baik',
-        musyrifId: santriData.musyrifId,
         musyrifNama: santriData.musyrifNama,
-        asrama: santriData.asrama,
-        kamar: santriData.kamar,
-        keterangan: santriData.keterangan
+        asrama: santriData.asrama
       }
     };
   }
 
   try {
-    const payload: any = {
+    const payload = {
       kode_santri: santriData.nis.trim(),
       nama: santriData.nama.trim().toUpperCase(),
       kelas: santriData.kelas.trim(),
       unit: santriData.unit,
-      total_poin: 0,
-      status_pembinaan: santriData.statusPembinaan || 'Baik',
+      musyrif: santriData.musyrifNama?.trim() || null,
       asrama: santriData.asrama?.trim() || `Asrama ${santriData.unit}`,
-      kamar: santriData.kamar?.trim() || '-',
-      keterangan: santriData.keterangan?.trim() || null
+      status_pembinaan: santriData.statusPembinaan || 'Baik'
     };
-
-    if (santriData.musyrifId) {
-      payload.musyrif_id = santriData.musyrifId;
-    }
 
     const { data, error } = await supabase
       .from('santri')
       .insert([payload])
-      .select('*')
+      .select('id, kode_santri, nama, kelas, unit, musyrif, asrama, status_pembinaan, created_at')
       .single();
 
     if (error) {
       console.error('[INSERT SANTRI ERROR]', error);
-      return { success: false, error: error.message };
+      return { success: false, error: translateSupabaseError(error) };
     }
 
     return {
       success: true,
       data: {
         id: String(data.id),
-        nis: String(data.kode_santri || data.nis || santriData.nis),
+        nis: String(data.kode_santri || santriData.nis),
         nama: String(data.nama || santriData.nama).toUpperCase(),
         kelas: String(data.kelas || santriData.kelas),
         unit: (data.unit as UnitPesantren) || santriData.unit,
-        totalPoin: Number(data.total_poin ?? 0),
+        totalPoin: 0,
         statusPembinaan: data.status_pembinaan || 'Baik',
-        musyrifId: data.musyrif_id || santriData.musyrifId,
-        musyrifNama: santriData.musyrifNama,
-        asrama: data.asrama,
-        kamar: data.kamar,
-        keterangan: data.keterangan
+        musyrifNama: data.musyrif || santriData.musyrifNama,
+        asrama: data.asrama
       }
     };
   } catch (err: any) {
     console.error('[INSERT SANTRI EXCEPTION]', err);
-    return { success: false, error: err?.message || 'Gagal menyimpan santri ke database.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -774,11 +761,8 @@ export async function updateSantriInDB(
     nama: string;
     kelas: string;
     unit: UnitPesantren;
-    musyrifId?: string;
     musyrifNama?: string;
     asrama?: string;
-    kamar?: string;
-    keterangan?: string;
     statusPembinaan?: Santri['statusPembinaan'];
   },
   actorRole?: UserRole,
@@ -788,7 +772,7 @@ export async function updateSantriInDB(
     return { success: false, error: `Akses Ditolak: Anda (${actorUnit}) tidak berwenang mengubah santri Unit ${santriData.unit}!` };
   }
 
-  if (!supabase) return { success: true };
+  if (!isSupabaseConfigured()) return { success: true };
 
   try {
     const payload: any = {
@@ -796,17 +780,12 @@ export async function updateSantriInDB(
       nama: santriData.nama.trim().toUpperCase(),
       kelas: santriData.kelas.trim(),
       unit: santriData.unit,
-      asrama: santriData.asrama?.trim() || `Asrama ${santriData.unit}`,
-      kamar: santriData.kamar?.trim() || '-',
-      keterangan: santriData.keterangan?.trim() || null,
-      updated_at: new Date().toISOString()
+      musyrif: santriData.musyrifNama?.trim() || null,
+      asrama: santriData.asrama?.trim() || `Asrama ${santriData.unit}`
     };
 
     if (santriData.statusPembinaan) {
       payload.status_pembinaan = santriData.statusPembinaan;
-    }
-    if (santriData.musyrifId !== undefined) {
-      payload.musyrif_id = santriData.musyrifId || null;
     }
 
     const { error } = await supabase
@@ -816,12 +795,12 @@ export async function updateSantriInDB(
 
     if (error) {
       console.error('[UPDATE SANTRI ERROR]', error);
-      return { success: false, error: error.message };
+      return { success: false, error: translateSupabaseError(error) };
     }
 
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal memperbarui santri di database.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -835,12 +814,9 @@ export async function importSantriBatchToDB(
     nama: string;
     kelas: string;
     unit: UnitPesantren;
-    musyrifId?: string;
     musyrifNama?: string;
     asrama?: string;
-    kamar?: string;
     statusPembinaan?: Santri['statusPembinaan'];
-    keterangan?: string;
   }>,
   actorRole?: UserRole
 ): Promise<{ success: boolean; insertedCount: number; insertedData?: Santri[]; error?: string }> {
@@ -852,7 +828,7 @@ export async function importSantriBatchToDB(
     return { success: true, insertedCount: 0, insertedData: [] };
   }
 
-  if (!supabase) {
+  if (!isSupabaseConfigured()) {
     const localData = santriDataList.map((item) => ({
       id: `s-${item.unit.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       nis: item.nis.trim(),
@@ -861,33 +837,22 @@ export async function importSantriBatchToDB(
       unit: item.unit,
       totalPoin: 0,
       statusPembinaan: item.statusPembinaan || 'Baik',
-      musyrifId: item.musyrifId,
       musyrifNama: item.musyrifNama,
-      asrama: item.asrama?.trim() || `Asrama ${item.unit}`,
-      kamar: item.kamar?.trim() || '-',
-      keterangan: item.keterangan?.trim()
+      asrama: item.asrama?.trim() || `Asrama ${item.unit}`
     }));
     return { success: true, insertedCount: localData.length, insertedData: localData };
   }
 
   try {
-    const payload = santriDataList.map((item) => {
-      const row: any = {
-        kode_santri: item.nis.trim(),
-        nama: item.nama.trim().toUpperCase(),
-        kelas: item.kelas.trim(),
-        unit: item.unit,
-        total_poin: 0,
-        status_pembinaan: item.statusPembinaan || 'Baik',
-        asrama: item.asrama?.trim() || `Asrama ${item.unit}`,
-        kamar: item.kamar?.trim() || '-',
-        keterangan: item.keterangan?.trim() || null
-      };
-      if (item.musyrifId) {
-        row.musyrif_id = item.musyrifId;
-      }
-      return row;
-    });
+    const payload = santriDataList.map((item) => ({
+      kode_santri: item.nis.trim(),
+      nama: item.nama.trim().toUpperCase(),
+      kelas: item.kelas.trim(),
+      unit: item.unit,
+      musyrif: item.musyrifNama?.trim() || null,
+      asrama: item.asrama?.trim() || `Asrama ${item.unit}`,
+      status_pembinaan: item.statusPembinaan || 'Baik'
+    }));
 
     const chunkSize = 100;
     const insertedRecords: Santri[] = [];
@@ -897,33 +862,31 @@ export async function importSantriBatchToDB(
       const { data, error } = await supabase
         .from('santri')
         .upsert(chunk, { onConflict: 'kode_santri' })
-        .select('*');
+        .select('id, kode_santri, nama, kelas, unit, musyrif, asrama, status_pembinaan, created_at');
 
       if (error) {
         console.error('[IMPORT SANTRI CHUNK ERROR]', error);
         const { data: insertData, error: insertError } = await supabase
           .from('santri')
           .insert(chunk)
-          .select('*');
+          .select('id, kode_santri, nama, kelas, unit, musyrif, asrama, status_pembinaan, created_at');
 
         if (insertError) {
           console.error('[IMPORT SANTRI FALLBACK INSERT ERROR]', insertError);
-          return { success: false, insertedCount: insertedRecords.length, error: insertError.message };
+          return { success: false, insertedCount: insertedRecords.length, error: translateSupabaseError(insertError) };
         }
         if (insertData) {
           insertData.forEach((row: any) => {
             insertedRecords.push({
               id: String(row.id),
-              nis: String(row.kode_santri || row.nis || ''),
+              nis: String(row.kode_santri || ''),
               nama: String(row.nama || '').toUpperCase(),
               kelas: String(row.kelas || ''),
               unit: (row.unit as UnitPesantren) || 'SMP',
-              totalPoin: Number(row.total_poin ?? 0),
+              totalPoin: 0,
               statusPembinaan: row.status_pembinaan || 'Baik',
-              musyrifId: row.musyrif_id,
-              asrama: row.asrama,
-              kamar: row.kamar,
-              keterangan: row.keterangan
+              musyrifNama: row.musyrif || undefined,
+              asrama: row.asrama || undefined
             });
           });
         }
@@ -931,16 +894,14 @@ export async function importSantriBatchToDB(
         data.forEach((row: any) => {
           insertedRecords.push({
             id: String(row.id),
-            nis: String(row.kode_santri || row.nis || ''),
+            nis: String(row.kode_santri || ''),
             nama: String(row.nama || '').toUpperCase(),
             kelas: String(row.kelas || ''),
             unit: (row.unit as UnitPesantren) || 'SMP',
-            totalPoin: Number(row.total_poin ?? 0),
+            totalPoin: 0,
             statusPembinaan: row.status_pembinaan || 'Baik',
-            musyrifId: row.musyrif_id,
-            asrama: row.asrama,
-            kamar: row.kamar,
-            keterangan: row.keterangan
+            musyrifNama: row.musyrif || undefined,
+            asrama: row.asrama || undefined
           });
         });
       }
@@ -954,7 +915,7 @@ export async function importSantriBatchToDB(
     };
   } catch (err: any) {
     console.error('[IMPORT SANTRI EXCEPTION]', err);
-    return { success: false, insertedCount: 0, error: err?.message || 'Gagal mengimpor data santri ke database.' };
+    return { success: false, insertedCount: 0, error: translateSupabaseError(err) };
   }
 }
 
@@ -977,7 +938,7 @@ export async function deleteSantriFromDB(
 
   logAuthDebug('[DELETE SANTRI]', { santriId: santri.id, nama: santri.nama });
 
-  if (!supabase) {
+  if (!isSupabaseConfigured()) {
     return { success: true, deletedViolationsCount: 0 };
   }
 
@@ -1010,7 +971,7 @@ export async function deleteSantriFromDB(
         return {
           success: false,
           deletedViolationsCount: 0,
-          error: `Gagal menghapus data pelanggaran santri: ${deletePelanggaranError.message}`
+          error: `Gagal menghapus data pelanggaran santri: ${translateSupabaseError(deletePelanggaranError)}`
         };
       }
     }
@@ -1026,7 +987,7 @@ export async function deleteSantriFromDB(
       return {
         success: false,
         deletedViolationsCount: totalViolations,
-        error: `Gagal menghapus data santri dari database: ${deleteSantriError.message}`
+        error: `Gagal menghapus data santri dari database: ${translateSupabaseError(deleteSantriError)}`
       };
     }
 
@@ -1039,24 +1000,25 @@ export async function deleteSantriFromDB(
     return {
       success: false,
       deletedViolationsCount: 0,
-      error: err?.message || 'Terjadi kesalahan sistem saat menghapus data santri.'
+      error: translateSupabaseError(err)
     };
   }
 }
 
 // ==============================================================================
 // 3. MASTER PELANGGARAN (public.master_pelanggaran)
+// SCHEMA AKTUAL: id, kode, nama, poin, kategori, hukuman, created_at
 // ==============================================================================
 
 /**
  * Helper to fetch master pelanggaran from Supabase.
  */
 export async function fetchMasterPelanggaranFromDB(): Promise<Pelanggaran[] | null> {
-  if (!supabase) return null;
+  if (!isSupabaseConfigured()) return null;
   try {
     const { data, error } = await supabase
       .from('master_pelanggaran')
-      .select('id, kode, jenis, nama, poin, kategori, konsekuensi, hukuman')
+      .select('id, kode, nama, poin, kategori, hukuman, created_at')
       .order('kode', { ascending: true });
 
     if (error || !data) {
@@ -1067,10 +1029,10 @@ export async function fetchMasterPelanggaranFromDB(): Promise<Pelanggaran[] | nu
     return data.map((row: any, idx: number) => ({
       id: String(row.id),
       kode: String(row.kode || `P${String(idx + 1).padStart(3, '0')}`),
-      jenis: String(row.jenis || row.nama || ''),
+      jenis: String(row.nama || ''),
       poin: Number(row.poin) || 15,
       kategori: (row.kategori as PelanggaranKategori) || 'Sangat Ringan',
-      konsekuensi: String(row.konsekuensi || row.hukuman || '-')
+      konsekuensi: String(row.hukuman || '-')
     }));
   } catch (err: any) {
     logAuthDebug('Error fetching master pelanggaran from Supabase:', err?.message);
@@ -1092,7 +1054,7 @@ export async function insertMasterPelanggaranToDB(
     return { success: false, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang menambah data.' };
   }
 
-  if (!supabase) {
+  if (!isSupabaseConfigured()) {
     return {
       success: true,
       data: {
@@ -1109,21 +1071,21 @@ export async function insertMasterPelanggaranToDB(
   try {
     const payload = {
       kode: item.kode || `P${Math.floor(100 + Math.random() * 900)}`,
-      jenis: item.jenis,
+      nama: item.jenis,
       poin: item.poin,
       kategori: item.kategori,
-      konsekuensi: item.konsekuensi
+      hukuman: item.konsekuensi || '-'
     };
 
     const { data, error } = await supabase
       .from('master_pelanggaran')
       .insert([payload])
-      .select('id, kode, jenis, nama, poin, kategori, konsekuensi, hukuman')
+      .select('id, kode, nama, poin, kategori, hukuman, created_at')
       .single();
 
     if (error) {
       console.error('[INSERT MASTER ERROR]', error);
-      return { success: false, error: error.message };
+      return { success: false, error: translateSupabaseError(error) };
     }
 
     return {
@@ -1131,14 +1093,14 @@ export async function insertMasterPelanggaranToDB(
       data: {
         id: String(data.id),
         kode: data.kode || payload.kode,
-        jenis: data.jenis || data.nama || payload.jenis,
+        jenis: data.nama || payload.nama,
         poin: Number(data.poin) || payload.poin,
         kategori: data.kategori || payload.kategori,
-        konsekuensi: data.konsekuensi || data.hukuman || payload.konsekuensi
+        konsekuensi: data.hukuman || payload.hukuman
       }
     };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal menyimpan data ke database.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -1156,15 +1118,15 @@ export async function updateMasterPelanggaranInDB(
   if (userRole !== 'KASIE_KEPESANTRENAN') {
     return { success: false, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang mengedit data.' };
   }
-  if (!supabase) return { success: true };
+  if (!isSupabaseConfigured()) return { success: true };
 
   try {
     const payload = {
       kode: updateData.kode,
-      jenis: updateData.jenis,
+      nama: updateData.jenis,
       poin: updateData.poin,
       kategori: updateData.kategori,
-      konsekuensi: updateData.konsekuensi
+      hukuman: updateData.konsekuensi
     };
 
     const { error } = await supabase
@@ -1173,11 +1135,12 @@ export async function updateMasterPelanggaranInDB(
       .eq('id', id);
 
     if (error) {
-      return { success: false, error: error.message };
+      console.error('[UPDATE MASTER ERROR]', error);
+      return { success: false, error: translateSupabaseError(error) };
     }
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal memperbarui data di Supabase.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -1188,7 +1151,7 @@ export async function deleteMasterPelanggaranFromDB(
   if (userRole !== 'KASIE_KEPESANTRENAN') {
     return { success: false, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang menghapus data.' };
   }
-  if (!supabase) return { success: true };
+  if (!isSupabaseConfigured()) return { success: true };
 
   try {
     const { error } = await supabase
@@ -1197,11 +1160,12 @@ export async function deleteMasterPelanggaranFromDB(
       .eq('id', id);
 
     if (error) {
-      return { success: false, error: error.message };
+      console.error('[DELETE MASTER ERROR]', error);
+      return { success: false, error: translateSupabaseError(error) };
     }
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal menghapus data dari Supabase.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -1213,7 +1177,7 @@ export async function deleteAllMasterPelanggaranFromDB(
     return { success: false, deletedCount: 0, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang mereset data.' };
   }
   if (recordsToDelete.length === 0) return { success: true, deletedCount: 0 };
-  if (!supabase) return { success: true, deletedCount: recordsToDelete.length };
+  if (!isSupabaseConfigured()) return { success: true, deletedCount: recordsToDelete.length };
 
   try {
     const targetIds = recordsToDelete.map((r) => r.id);
@@ -1223,11 +1187,12 @@ export async function deleteAllMasterPelanggaranFromDB(
       .in('id', targetIds);
 
     if (error) {
-      return { success: false, deletedCount: 0, error: error.message };
+      console.error('[DELETE ALL MASTER ERROR]', error);
+      return { success: false, deletedCount: 0, error: translateSupabaseError(error) };
     }
     return { success: true, deletedCount: recordsToDelete.length };
   } catch (err: any) {
-    return { success: false, deletedCount: 0, error: err?.message || 'Gagal menghapus data dari Supabase.' };
+    return { success: false, deletedCount: 0, error: translateSupabaseError(err) };
   }
 }
 
@@ -1245,7 +1210,7 @@ export async function importMasterPelanggaranBatchToDB(
     return { success: false, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang.' };
   }
   if (items.length === 0) return { success: true, insertedData: [] };
-  if (!supabase) {
+  if (!isSupabaseConfigured()) {
     const localData = items.map((it, idx) => ({
       id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `temp-${Date.now()}-${idx}`,
       kode: it.kode || `P${String(idx + 1).padStart(3, '0')}`,
@@ -1260,51 +1225,77 @@ export async function importMasterPelanggaranBatchToDB(
   try {
     const payload = items.map((it) => ({
       kode: it.kode,
-      jenis: it.jenis,
+      nama: it.jenis,
       poin: it.poin,
       kategori: it.kategori,
-      konsekuensi: it.konsekuensi
+      hukuman: it.konsekuensi
     }));
 
     const { data, error } = await supabase
       .from('master_pelanggaran')
       .insert(payload)
-      .select('id, kode, jenis, nama, poin, kategori, konsekuensi, hukuman');
+      .select('id, kode, nama, poin, kategori, hukuman, created_at');
 
     if (error) {
       console.error('[IMPORT MASTER BATCH ERROR]', error);
-      return { success: false, error: error.message };
+      return { success: false, error: translateSupabaseError(error) };
     }
 
     const mapped: Pelanggaran[] = (data || []).map((row: any) => ({
       id: String(row.id),
       kode: row.kode || '',
-      jenis: row.jenis || row.nama || '',
+      jenis: row.nama || '',
       poin: Number(row.poin) || 0,
       kategori: row.kategori || 'Sangat Ringan',
-      konsekuensi: row.konsekuensi || row.hukuman || '-'
+      konsekuensi: row.hukuman || '-'
     }));
 
     return { success: true, insertedData: mapped };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal mengimpor data ke database.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
 // ==============================================================================
 // 4. TRANSAKSI PELANGGARAN & REKAP (public.pelanggaran)
+// SCHEMA AKTUAL: id, santri_id, pelanggaran_id, tanggal_waktu, poin, hukuman, catatan, dicatat_oleh, created_at
 // ==============================================================================
 
 /**
  * Fetch all violation transaction logs from Supabase public.pelanggaran table.
  */
 export async function fetchPelanggaranFromDB(): Promise<RiwayatPelanggaran[] | null> {
-  if (!supabase) return null;
+  if (!isSupabaseConfigured()) return null;
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('pelanggaran')
-      .select('*')
+      .select(`
+        id,
+        santri_id,
+        pelanggaran_id,
+        tanggal_waktu,
+        poin,
+        hukuman,
+        catatan,
+        dicatat_oleh,
+        created_at,
+        santri:santri_id (id, kode_santri, nama, kelas, unit),
+        master_pelanggaran:pelanggaran_id (id, kode, nama),
+        users:dicatat_oleh (id, nama, jabatan)
+      `)
       .order('created_at', { ascending: false });
+
+    // Fallback if joined relation syntax fails in Supabase PostgREST
+    if (error || !data) {
+      const fallback = await supabase
+        .from('pelanggaran')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!fallback.error && fallback.data) {
+        data = fallback.data;
+        error = null;
+      }
+    }
 
     if (error || !data) {
       logAuthDebug('Fetch pelanggaran from Supabase error/notice:', error?.message);
@@ -1314,32 +1305,31 @@ export async function fetchPelanggaranFromDB(): Promise<RiwayatPelanggaran[] | n
     logAuthDebug(`Fetched ${data.length} records from public.pelanggaran in Supabase.`);
 
     return data.map((row: any) => {
-      const createdAtDate = row.created_at ? new Date(row.created_at) : new Date();
+      const rawDate = row.tanggal_waktu || row.created_at;
+      const createdAtDate = rawDate ? new Date(rawDate) : new Date();
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
       const formattedTanggal = `${createdAtDate.getDate()} ${months[createdAtDate.getMonth()]} ${createdAtDate.getFullYear()}, ${String(createdAtDate.getHours()).padStart(2, '0')}.${String(createdAtDate.getMinutes()).padStart(2, '0')} WIB`;
+
+      const santriObj = row.santri || {};
+      const masterObj = row.master_pelanggaran || {};
+      const userObj = row.users || {};
 
       return {
         id: String(row.id),
         tanggal: formattedTanggal,
-        timestamp: row.created_at || new Date().toISOString(),
+        timestamp: row.tanggal_waktu || row.created_at || new Date().toISOString(),
         santriId: String(row.santri_id || ''),
-        santriNama: String(row.santri_nama || ''),
-        santriKelas: String(row.santri_kelas || ''),
-        santriUnit: (row.santri_unit as UnitPesantren) || 'SMP',
-        jenisPelanggaranId: String(row.jenis_pelanggaran_id || ''),
-        jenisPelanggaranNama: String(row.jenis_pelanggaran_nama || ''),
+        santriNama: String(santriObj.nama || row.santri_nama || ''),
+        santriKelas: String(santriObj.kelas || row.santri_kelas || ''),
+        santriUnit: (santriObj.unit || row.santri_unit || 'SMP') as UnitPesantren,
+        jenisPelanggaranId: String(row.pelanggaran_id || row.jenis_pelanggaran_id || ''),
+        jenisPelanggaranNama: String(masterObj.nama || row.jenis_pelanggaran_nama || ''),
         poin: Number(row.poin) || 0,
         hukuman: String(row.hukuman || '-'),
-        pembinaanTingkat: row.pembinaan_tingkat || undefined,
-        rekomendasiPembinaan: Array.isArray(row.rekomendasi_pembinaan)
-          ? row.rekomendasi_pembinaan
-          : typeof row.rekomendasi_pembinaan === 'string'
-          ? JSON.parse(row.rekomendasi_pembinaan)
-          : undefined,
-        status: (row.status as 'Selesai' | 'Belum Selesai') || 'Belum Selesai',
+        status: (row.status as 'Selesai' | 'Belum Selesai') || (Number(row.poin) >= 50 ? 'Belum Selesai' : 'Selesai'),
         catatan: row.catatan || undefined,
-        pencatat: String(row.pencatat_nama || 'Petugas'),
-        pencatatId: row.pencatat_id ? String(row.pencatat_id) : undefined
+        pencatat: String(userObj.nama || row.pencatat_nama || 'Petugas'),
+        pencatatId: row.dicatat_oleh ? String(row.dicatat_oleh) : (row.pencatat_id ? String(row.pencatat_id) : undefined)
       };
     });
   } catch (err: any) {
@@ -1349,7 +1339,7 @@ export async function fetchPelanggaranFromDB(): Promise<RiwayatPelanggaran[] | n
 }
 
 /**
- * Record a new violation transaction in Supabase public.pelanggaran and update santri total_poin.
+ * Record a new violation transaction in Supabase public.pelanggaran.
  */
 export async function insertPelanggaranToDB(
   data: {
@@ -1382,7 +1372,7 @@ export async function insertPelanggaranToDB(
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
   const formattedTanggal = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}.${String(now.getMinutes()).padStart(2, '0')} WIB`;
 
-  if (!supabase) {
+  if (!isSupabaseConfigured()) {
     return {
       success: true,
       data: {
@@ -1399,8 +1389,6 @@ export async function insertPelanggaranToDB(
         hukuman: data.hukuman,
         status: data.poin >= 50 ? 'Belum Selesai' : 'Selesai',
         catatan: data.catatan,
-        pembinaanTingkat: data.pembinaanTingkat,
-        rekomendasiPembinaan: data.rekomendasiPembinaan,
         pencatat: data.pencatatNama,
         pencatatId: data.pencatatId
       }
@@ -1410,60 +1398,23 @@ export async function insertPelanggaranToDB(
   try {
     const payload: any = {
       santri_id: data.santriId,
-      santri_unit: data.santriUnit,
-      jenis_pelanggaran_id: isValidUUID(data.jenisPelanggaranId) ? data.jenisPelanggaranId : null,
-      jenis_pelanggaran_nama: data.jenisPelanggaranNama,
+      pelanggaran_id: isValidUUID(data.jenisPelanggaranId) ? data.jenisPelanggaranId : null,
+      tanggal_waktu: now.toISOString(),
       poin: data.poin,
-      hukuman: data.hukuman,
-      status: data.poin >= 50 ? 'Belum Selesai' : 'Selesai',
+      hukuman: data.hukuman || '-',
       catatan: data.catatan || null,
-      pencatat_id: data.pencatatId ? (isValidUUID(data.pencatatId) ? data.pencatatId : null) : null,
-      pencatat_nama: data.pencatatNama
+      dicatat_oleh: (data.pencatatId && isValidUUID(data.pencatatId)) ? data.pencatatId : null
     };
-
-    if (data.pembinaanTingkat) {
-      payload.pembinaan_tingkat = data.pembinaanTingkat;
-    }
-    if (data.rekomendasiPembinaan) {
-      payload.rekomendasi_pembinaan = data.rekomendasiPembinaan;
-    }
 
     const { data: insertedRow, error: insertError } = await supabase
       .from('pelanggaran')
       .insert([payload])
-      .select('*')
+      .select('id, santri_id, pelanggaran_id, tanggal_waktu, poin, hukuman, catatan, dicatat_oleh, created_at')
       .single();
 
     if (insertError) {
       console.error('[INSERT PELANGGARAN ERROR]', insertError);
-      return { success: false, error: insertError.message };
-    }
-
-    // Update total_poin in public.santri
-    try {
-      const { data: currentSantri } = await supabase
-        .from('santri')
-        .select('total_poin')
-        .eq('id', data.santriId)
-        .maybeSingle();
-
-      const newTotal = (currentSantri?.total_poin || 0) + data.poin;
-      let newStatus = 'Baik';
-      if (newTotal >= 100) newStatus = 'SP 3';
-      else if (newTotal >= 70) newStatus = 'SP 2';
-      else if (newTotal >= 40) newStatus = 'SP 1';
-      else if (newTotal > 0) newStatus = 'Peringatan Lisan';
-
-      await supabase
-        .from('santri')
-        .update({
-          total_poin: newTotal,
-          status_pembinaan: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', data.santriId);
-    } catch (updateErr) {
-      console.warn('Failed to update santri total_poin in DB:', updateErr);
+      return { success: false, error: translateSupabaseError(insertError) };
     }
 
     return {
@@ -1471,7 +1422,7 @@ export async function insertPelanggaranToDB(
       data: {
         id: String(insertedRow.id),
         tanggal: formattedTanggal,
-        timestamp: insertedRow.created_at || now.toISOString(),
+        timestamp: insertedRow.tanggal_waktu || insertedRow.created_at || now.toISOString(),
         santriId: data.santriId,
         santriNama: data.santriNama,
         santriKelas: data.santriKelas,
@@ -1480,17 +1431,15 @@ export async function insertPelanggaranToDB(
         jenisPelanggaranNama: data.jenisPelanggaranNama,
         poin: data.poin,
         hukuman: data.hukuman,
-        status: (insertedRow.status as any) || (data.poin >= 50 ? 'Belum Selesai' : 'Selesai'),
+        status: data.poin >= 50 ? 'Belum Selesai' : 'Selesai',
         catatan: data.catatan,
-        pembinaanTingkat: data.pembinaanTingkat,
-        rekomendasiPembinaan: data.rekomendasiPembinaan,
         pencatat: data.pencatatNama,
         pencatatId: data.pencatatId
       }
     };
   } catch (err: any) {
     console.error('[INSERT PELANGGARAN EXCEPTION]', err);
-    return { success: false, error: err?.message || 'Gagal menyimpan transaksi pelanggaran.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -1498,17 +1447,20 @@ export async function updatePelanggaranStatusInDB(
   id: string,
   status: 'Selesai' | 'Belum Selesai'
 ): Promise<{ success: boolean; error?: string }> {
-  if (!supabase) return { success: true };
+  if (!isSupabaseConfigured()) return { success: true };
   try {
     const { error } = await supabase
       .from('pelanggaran')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', id);
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      console.error('[UPDATE STATUS PELANGGARAN ERROR]', error);
+      return { success: false, error: translateSupabaseError(error) };
+    }
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal memperbarui status pelanggaran.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -1519,7 +1471,7 @@ export async function deletePelanggaranRecordFromDB(
   if (actorRole !== 'KASIE_KEPESANTRENAN') {
     return { success: false, error: 'Akses Ditolak: Hanya Kasie Kepesantrenan yang berwenang menghapus data pelanggaran.' };
   }
-  if (!supabase) return { success: true };
+  if (!isSupabaseConfigured()) return { success: true };
 
   try {
     // 1. Get record info to adjust santri total_poin
@@ -1536,7 +1488,8 @@ export async function deletePelanggaranRecordFromDB(
       .eq('id', id);
 
     if (deleteError) {
-      return { success: false, error: deleteError.message };
+      console.error('[DELETE PELANGGARAN ERROR]', deleteError);
+      return { success: false, error: translateSupabaseError(deleteError) };
     }
 
     // 3. Recalculate santri total_poin
@@ -1569,7 +1522,7 @@ export async function deletePelanggaranRecordFromDB(
 
     return { success: true };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'Gagal menghapus pelanggaran dari database.' };
+    return { success: false, error: translateSupabaseError(err) };
   }
 }
 
@@ -1578,7 +1531,7 @@ export async function deletePelanggaranRecordFromDB(
 // ==============================================================================
 
 export async function fetchMasterPembinaanFromDB(): Promise<MasterPembinaan[]> {
-  if (!supabase) return initialMasterPembinaanList;
+  if (!isSupabaseConfigured()) return initialMasterPembinaanList;
   try {
     const { data, error } = await supabase
       .from('master_pembinaan')

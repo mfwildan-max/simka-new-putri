@@ -33,7 +33,9 @@ export const EditPelanggaranModal: React.FC<EditPelanggaranModalProps> = ({
 
   if (!isOpen || !pelanggaran) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!jenis.trim()) {
@@ -46,17 +48,26 @@ export const EditPelanggaranModal: React.FC<EditPelanggaranModalProps> = ({
       return;
     }
 
-    const result = updatePelanggaran(pelanggaran.id, {
-      kode: kode.trim() || undefined,
-      jenis: jenis.trim(),
-      poin,
-      konsekuensi: konsekuensi.trim() || '-'
-    });
+    setIsSubmitting(true);
 
-    if (result.success) {
-      onClose();
-    } else {
-      showToast('Gagal Memperbarui', result.message || 'Terjadi kesalahan.', 'error');
+    try {
+      const result = await updatePelanggaran(pelanggaran.id, {
+        kode: kode.trim() || undefined,
+        jenis: jenis.trim(),
+        poin,
+        konsekuensi: konsekuensi.trim() || '-'
+      });
+
+      setIsSubmitting(false);
+
+      if (result.success) {
+        onClose();
+      } else {
+        showToast('Gagal Memperbarui', result.message || 'Terjadi kesalahan.', 'error');
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      showToast('Gagal Memperbarui', err?.message || 'Terjadi kesalahan saat memperbarui database.', 'error');
     }
   };
 

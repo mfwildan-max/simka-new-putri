@@ -454,32 +454,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchPembinaanRecordsFromDB()
       ]);
 
-      if (dbSantri && dbSantri.length > 0) {
-        setAllSantriList(dbSantri);
-        localStorage.setItem('simka_santri', JSON.stringify(dbSantri));
+      let effectivePelanggaran = dbPelanggaran;
+      if (effectivePelanggaran !== null) {
+        setAllRiwayatList(effectivePelanggaran);
+        localStorage.setItem('simka_riwayat', JSON.stringify(effectivePelanggaran));
+      } else {
+        effectivePelanggaran = allRiwayatList;
       }
 
-      if (dbPelanggaran) {
-        setAllRiwayatList(dbPelanggaran);
-        localStorage.setItem('simka_riwayat', JSON.stringify(dbPelanggaran));
+      if (dbSantri !== null) {
+        // Calculate dynamic totalPoin for each santri from violation transactions
+        const santriWithPoin = dbSantri.map((santri) => {
+          const matchingViolations = (effectivePelanggaran || []).filter(
+            (v) => v.santriId === santri.id || (v.santriNama && v.santriNama.toLowerCase() === santri.nama.toLowerCase() && v.santriUnit === santri.unit)
+          );
+          const totalPoin = matchingViolations.reduce((sum, item) => sum + (Number(item.poin) || 0), 0);
+          let statusPembinaan = santri.statusPembinaan || 'Baik';
+          if (totalPoin >= 100) statusPembinaan = 'SP 3';
+          else if (totalPoin >= 70) statusPembinaan = 'SP 2';
+          else if (totalPoin >= 40) statusPembinaan = 'SP 1';
+          else if (totalPoin > 0) statusPembinaan = 'Peringatan Lisan';
+
+          return {
+            ...santri,
+            totalPoin,
+            statusPembinaan
+          };
+        });
+
+        setAllSantriList(santriWithPoin);
+        localStorage.setItem('simka_santri', JSON.stringify(santriWithPoin));
       }
 
-      if (dbMasterPelanggaran && dbMasterPelanggaran.length > 0) {
+      if (dbMasterPelanggaran !== null && dbMasterPelanggaran.length > 0) {
         setPelanggaranList(dbMasterPelanggaran);
         localStorage.setItem('simka_master_pelanggaran', JSON.stringify(dbMasterPelanggaran));
       }
 
-      if (dbMasterPembinaan && dbMasterPembinaan.length > 0) {
+      if (dbMasterPembinaan !== null && dbMasterPembinaan.length > 0) {
         setMasterPembinaanList(dbMasterPembinaan);
         localStorage.setItem('simka_master_pembinaan', JSON.stringify(dbMasterPembinaan));
       }
 
-      if (dbUsers && dbUsers.length > 0) {
+      if (dbUsers !== null && dbUsers.length > 0) {
         setUsersList(dbUsers);
         localStorage.setItem('simka_users', JSON.stringify(dbUsers));
       }
 
-      if (dbPembinaan && dbPembinaan.length > 0) {
+      if (dbPembinaan !== null) {
         setAllPembinaanList(dbPembinaan);
         localStorage.setItem('simka_pembinaan_records', JSON.stringify(dbPembinaan));
       }

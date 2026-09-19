@@ -21,7 +21,7 @@ export const AddPelanggaranModal: React.FC<AddPelanggaranModalProps> = ({ isOpen
 
   const currentKategori = getKategoriFromPoin(poin);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!jenis.trim()) {
@@ -36,24 +36,29 @@ export const AddPelanggaranModal: React.FC<AddPelanggaranModalProps> = ({ isOpen
 
     setIsSubmitting(true);
 
-    const result = addPelanggaran({
-      kode: kode.trim() || undefined,
-      jenis: jenis.trim(),
-      poin,
-      konsekuensi: konsekuensi.trim() || '-'
-    });
+    try {
+      const result = await addPelanggaran({
+        kode: kode.trim() || undefined,
+        jenis: jenis.trim(),
+        poin,
+        konsekuensi: konsekuensi.trim() || '-'
+      });
 
-    setIsSubmitting(false);
+      setIsSubmitting(false);
 
-    if (result.success) {
-      onClose();
-      // Reset
-      setKode('');
-      setJenis('');
-      setPoin(15);
-      setKonsekuensi('');
-    } else {
-      showToast('Gagal Menambahkan', result.message || 'Terjadi kesalahan sistem.', 'error');
+      if (result.success) {
+        onClose();
+        // Reset
+        setKode('');
+        setJenis('');
+        setPoin(15);
+        setKonsekuensi('');
+      } else {
+        showToast('Gagal Menambahkan', result.message || 'Terjadi kesalahan sistem.', 'error');
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      showToast('Gagal Menambahkan', err?.message || 'Terjadi kesalahan sistem saat menyimpan ke database.', 'error');
     }
   };
 

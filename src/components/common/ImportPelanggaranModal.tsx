@@ -84,7 +84,7 @@ export const ImportPelanggaranModal: React.FC<ImportPelanggaranModalProps> = ({
     }
   };
 
-  const handleExecuteImport = () => {
+  const handleExecuteImport = async () => {
     const validRows = importRows.filter((r) => r.status === 'valid');
     if (validRows.length === 0) {
       showToast('Tidak Ada Data', 'Tidak ada data valid yang dapat diimport.', 'warning');
@@ -93,23 +93,28 @@ export const ImportPelanggaranModal: React.FC<ImportPelanggaranModalProps> = ({
 
     setIsImporting(true);
 
-    const payload = validRows.map((r) => ({
-      kode: r.kode,
-      jenis: r.jenis,
-      poin: r.poin,
-      konsekuensi: r.konsekuensi
-    }));
+    try {
+      const payload = validRows.map((r) => ({
+        kode: r.kode,
+        jenis: r.jenis,
+        poin: r.poin,
+        konsekuensi: r.konsekuensi
+      }));
 
-    const result = importPelanggaranBatch(payload);
-    setIsImporting(false);
+      const result = await importPelanggaranBatch(payload);
+      setIsImporting(false);
 
-    if (result.success) {
-      onClose();
-      // Reset state
-      setFile(null);
-      setImportRows([]);
-    } else {
-      showToast('Gagal Import', result.message, 'error');
+      if (result.success) {
+        onClose();
+        // Reset state
+        setFile(null);
+        setImportRows([]);
+      } else {
+        showToast('Gagal Import', result.message, 'error');
+      }
+    } catch (err: any) {
+      setIsImporting(false);
+      showToast('Gagal Import', err?.message || 'Terjadi kesalahan saat mengimpor data.', 'error');
     }
   };
 

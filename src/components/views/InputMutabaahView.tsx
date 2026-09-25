@@ -44,7 +44,7 @@ export const InputMutabaahView: React.FC = () => {
 
           <div className="space-y-3">
             <div className="inline-block px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 text-[11px] sm:text-xs font-bold uppercase tracking-wider">
-              SIMKA.ID PRO V.1 • Roadmap Pengembangan
+              SIMKA.ID Pro V1 • Roadmap Pengembangan
             </div>
             
             <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight">

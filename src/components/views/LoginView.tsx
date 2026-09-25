@@ -51,9 +51,14 @@ export const LoginView: React.FC = () => {
           </div>
 
           {/* SIMKA.ID TITLE */}
-          <h1 className="text-[26px] sm:text-[32px] font-black tracking-tight text-white leading-tight">
-            SIMKA<span className="text-[#00B686]">.ID</span>
-          </h1>
+          <div className="flex items-center justify-center gap-2">
+            <h1 className="text-[26px] sm:text-[32px] font-black tracking-tight text-white leading-tight">
+              SIMKA<span className="text-[#00B686]">.ID</span>
+            </h1>
+            <span className="px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold bg-[#00B686]/15 text-[#00B686] border border-[#00B686]/30 tracking-wider">
+              Pro V1
+            </span>
+          </div>
 
           {/* TAGLINE */}
           <p className="text-[13px] sm:text-[14.5px] font-semibold text-emerald-300/90 mt-1 max-w-xs sm:max-w-md leading-relaxed tracking-wide">
@@ -205,7 +210,7 @@ export const LoginView: React.FC = () => {
       {/* ============================================================ */}
       <footer className="w-full text-center text-slate-400 text-[11px] sm:text-[12px] py-4 space-y-0.5">
         <p className="font-semibold text-slate-300">
-          Dikelola Oleh Bidang Akhlak dan Karakter
+          SIMKA.ID Pro V1 &bull; Dikelola Oleh Bidang Akhlak dan Karakter
         </p>
         <p className="text-slate-400">
           Kepesantrenan Nurul Islam Tengaran

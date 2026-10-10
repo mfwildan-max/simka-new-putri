@@ -383,7 +383,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [masterPembinaanList, setMasterPembinaanList] = useState<MasterPembinaan[]>(() => {
     try {
       const saved = localStorage.getItem('simka_master_pembinaan');
-      return saved ? JSON.parse(saved) : initialMasterPembinaanList;
+      if (saved) {
+        const parsed: MasterPembinaan[] = JSON.parse(saved);
+        // Validasi: periksa apakah cached data masih memakai urutan terbalik lama (Tingkat 1 = 90-99)
+        const isOldInverted = parsed.some(
+          (p) => (p.tingkat === 1 && (p.min_poin ?? p.minPoin ?? 0) >= 50) ||
+                 (p.tingkat === 8 && (p.min_poin ?? p.minPoin ?? 0) <= 10)
+        );
+        if (!isOldInverted && parsed.length >= 8) {
+          return parsed;
+        }
+      }
+      localStorage.setItem('simka_master_pembinaan', JSON.stringify(initialMasterPembinaanList));
+      return initialMasterPembinaanList;
     } catch (e) {
       return initialMasterPembinaanList;
     }

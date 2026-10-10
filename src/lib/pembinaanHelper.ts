@@ -112,23 +112,32 @@ export function categorizePembinaan(items: string[] = []): CategorizedPembinaan 
 }
 
 /**
- * Durasi dan target waktu pembinaan resmi berdasarkan Tingkat (1-8)
+ * Durasi dan target waktu pembinaan resmi berdasarkan Level (1-8)
+ * Sesuai dokumen resmi Fiks Pembinaan Santri:
+ * Level 1 (5–10 poin): Target 3 hari (+ toleransi 1 hari)
+ * Level 2 (11–20 poin): Target 3 hari (+ toleransi 1 hari)
+ * Level 3 (21–30 poin): Target 7 hari (+ toleransi 2 hari)
+ * Level 4 (31–34 poin): Target 7 hari (+ toleransi 2 hari)
+ * Level 5 (35–49 poin): Target 7 hari (+ toleransi 2 hari)
+ * Level 6 (50–69 poin): Target 9 hari (+ toleransi 2 hari)
+ * Level 7 (70–89 poin): Target 14 hari (+ toleransi 2 hari)
+ * Level 8 (90–99 poin): Target 14 hari (+ toleransi 2 hari)
  */
 export function getLevelDuration(tingkat: number): LevelDuration {
   switch (tingkat) {
     case 1:
       return {
-        targetHari: 14,
-        toleransiHari: 2,
-        totalHari: 16,
-        keterangan: '14 hari (+ toleransi 2 hari)'
+        targetHari: 3,
+        toleransiHari: 1,
+        totalHari: 4,
+        keterangan: '3 hari (+ toleransi 1 hari)'
       };
     case 2:
       return {
-        targetHari: 12,
-        toleransiHari: 2,
-        totalHari: 14,
-        keterangan: '12 hari (+ toleransi 2 hari)'
+        targetHari: 3,
+        toleransiHari: 1,
+        totalHari: 4,
+        keterangan: '3 hari (+ toleransi 1 hari)'
       };
     case 3:
       return {
@@ -139,38 +148,38 @@ export function getLevelDuration(tingkat: number): LevelDuration {
       };
     case 4:
       return {
-        targetHari: 5,
+        targetHari: 7,
         toleransiHari: 2,
-        totalHari: 7,
-        keterangan: '5 hari (+ toleransi 2 hari)'
+        totalHari: 9,
+        keterangan: '7 hari (+ toleransi 2 hari)'
       };
     case 5:
       return {
-        targetHari: 4,
+        targetHari: 7,
         toleransiHari: 2,
-        totalHari: 6,
-        keterangan: '4 hari (+ toleransi 2 hari)'
+        totalHari: 9,
+        keterangan: '7 hari (+ toleransi 2 hari)'
       };
     case 6:
       return {
-        targetHari: 3,
+        targetHari: 9,
         toleransiHari: 2,
-        totalHari: 5,
-        keterangan: '3 hari (+ toleransi 2 hari)'
+        totalHari: 11,
+        keterangan: '9 hari (+ toleransi 2 hari)'
       };
     case 7:
       return {
-        targetHari: 2,
-        toleransiHari: 1,
-        totalHari: 3,
-        keterangan: '2 hari (+ toleransi 1 hari)'
+        targetHari: 14,
+        toleransiHari: 2,
+        totalHari: 16,
+        keterangan: '14 hari (+ toleransi 2 hari)'
       };
     case 8:
       return {
-        targetHari: 1,
-        toleransiHari: 1,
-        totalHari: 2,
-        keterangan: '1 hari (+ toleransi 1 hari)'
+        targetHari: 14,
+        toleransiHari: 2,
+        totalHari: 16,
+        keterangan: '14 hari (+ toleransi 2 hari)'
       };
     default:
       return {
@@ -202,53 +211,53 @@ export function getSeverityCategory(poin: number): SeverityCategory {
   if (poin >= 90) {
     return {
       levelKey: 'berat',
-      label: 'Berat',
-      poinRange: 'Poin 90–99',
+      label: 'Berat (Level 8)',
+      poinRange: '90–99 Poin',
       colorHex: '#F97316',
       badgeClass: 'bg-orange-500/20 text-orange-400 border-orange-500/40',
       borderClass: 'border-orange-500/50',
       bgClass: 'bg-orange-500/10',
       textClass: 'text-orange-400',
-      description: 'Pembinaan Khusus & SP 3'
+      description: 'Level 8: Skorsing tanpa syarat & pembinaan intensif 14 hari'
     };
   }
   if (poin >= 70) {
     return {
       levelKey: 'sedang',
-      label: 'Sedang',
-      poinRange: 'Poin 70–89',
+      label: 'Sedang (Level 7)',
+      poinRange: '70–89 Poin',
       colorHex: '#F59E0B',
       badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
       borderClass: 'border-amber-500/50',
       bgClass: 'bg-amber-500/10',
       textClass: 'text-amber-300',
-      description: 'Pembinaan Intensif & SP 2'
+      description: 'Level 7: Skorsing bersyarat & pembinaan intensif 10-14 hari'
     };
   }
   if (poin >= 50) {
     return {
       levelKey: 'ringan',
-      label: 'Ringan',
-      poinRange: 'Poin 50–69',
+      label: 'Ringan (Level 6)',
+      poinRange: '50–69 Poin',
       colorHex: '#3B82F6',
       badgeClass: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
       borderClass: 'border-blue-500/50',
       bgClass: 'bg-blue-500/10',
       textClass: 'text-blue-300',
-      description: 'Pembinaan Terpimpin & SP 1'
+      description: 'Level 6: Skorsing bersyarat & pembinaan 5-9 hari'
     };
   }
   if (poin >= 5) {
     return {
       levelKey: 'sangat_ringan',
-      label: 'Sangat Ringan',
-      poinRange: 'Poin 5–49',
+      label: 'Sangat Ringan (Level 1–5)',
+      poinRange: '5–49 Poin',
       colorHex: '#10B981',
       badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
       borderClass: 'border-emerald-500/50',
       bgClass: 'bg-emerald-500/10',
       textClass: 'text-emerald-300',
-      description: 'Teguran Lisan & Pembiasaan Akhlak'
+      description: 'Level 1–5: Pembinaan edukatif terukur sesuai rentang poin'
     };
   }
 
@@ -261,7 +270,7 @@ export function getSeverityCategory(poin: number): SeverityCategory {
     borderClass: 'border-slate-500/50',
     bgClass: 'bg-slate-500/10',
     textClass: 'text-slate-400',
-    description: 'Belum ada ketentuan pembinaan'
+    description: 'Belum ada ketentuan pembinaan untuk poin ini.'
   };
 }
 

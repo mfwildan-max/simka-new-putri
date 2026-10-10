@@ -179,7 +179,7 @@ export const RekomendasiPembinaanSection: React.FC<RekomendasiPembinaanSectionPr
               {singlePoin} Poin Tunggal
             </span>
             <span className="px-3.5 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-black text-xs tracking-wider uppercase shadow-md shadow-emerald-500/30">
-              {pembinaan.nama_tingkat}
+              LEVEL {pembinaan.tingkat} — {pembinaan.min_poin}–{pembinaan.max_poin} POIN
             </span>
           </div>
         </div>
@@ -188,7 +188,7 @@ export const RekomendasiPembinaanSection: React.FC<RekomendasiPembinaanSectionPr
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs bg-slate-100/80 dark:bg-[#070F1C]/70 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#172B48]">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-700 dark:text-slate-300">
-              Rentang Poin {pembinaan.nama_tingkat}:
+              Rentang Poin LEVEL {pembinaan.tingkat}:
             </span>
             <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-400 font-extrabold text-xs">
               {pembinaan.min_poin}–{pembinaan.max_poin} Poin
@@ -425,6 +425,7 @@ const PointCategoryBar: React.FC<{ currentPoin: number }> = ({ currentPoin }) =>
     {
       key: 'sangat_ringan',
       label: 'Sangat Ringan',
+      levelText: 'Level 1–5',
       range: '5–49 Poin',
       color: 'border-emerald-200 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10',
       activeColor: 'bg-emerald-500 text-slate-950 font-black border-emerald-400 ring-2 ring-emerald-500/40',
@@ -433,6 +434,7 @@ const PointCategoryBar: React.FC<{ currentPoin: number }> = ({ currentPoin }) =>
     {
       key: 'ringan',
       label: 'Ringan',
+      levelText: 'Level 6',
       range: '50–69 Poin',
       color: 'border-blue-200 dark:border-blue-500/40 text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10',
       activeColor: 'bg-blue-500 text-white font-black border-blue-400 ring-2 ring-blue-500/40',
@@ -441,6 +443,7 @@ const PointCategoryBar: React.FC<{ currentPoin: number }> = ({ currentPoin }) =>
     {
       key: 'sedang',
       label: 'Sedang',
+      levelText: 'Level 7',
       range: '70–89 Poin',
       color: 'border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10',
       activeColor: 'bg-amber-500 text-slate-950 font-black border-amber-400 ring-2 ring-amber-500/40',
@@ -449,6 +452,7 @@ const PointCategoryBar: React.FC<{ currentPoin: number }> = ({ currentPoin }) =>
     {
       key: 'berat',
       label: 'Berat',
+      levelText: 'Level 8',
       range: '90–99 Poin',
       color: 'border-orange-200 dark:border-orange-500/40 text-orange-800 dark:text-orange-300 bg-orange-50 dark:bg-orange-500/10',
       activeColor: 'bg-orange-500 text-white font-black border-orange-400 ring-2 ring-orange-500/40',
@@ -457,6 +461,7 @@ const PointCategoryBar: React.FC<{ currentPoin: number }> = ({ currentPoin }) =>
     {
       key: 'sangat_berat',
       label: 'Sangat Berat',
+      levelText: 'Tindakan Khusus',
       range: '100 Poin',
       color: 'border-rose-200 dark:border-rose-500/40 text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10',
       activeColor: 'bg-rose-500 text-white font-black border-rose-400 ring-2 ring-rose-500/40',
@@ -468,9 +473,9 @@ const PointCategoryBar: React.FC<{ currentPoin: number }> = ({ currentPoin }) =>
     <div className="pt-2 border-t border-slate-200 dark:border-[#172B48] space-y-2">
       <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
         <span className="font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-          Tingkat Kategori Poin Pelanggaran:
+          Tingkat Kategori Poin &amp; Level Pembinaan:
         </span>
-        <span>Indikator Tingkat Pelanggaran</span>
+        <span>Indikator Resmi Level 1–8</span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -484,7 +489,8 @@ const PointCategoryBar: React.FC<{ currentPoin: number }> = ({ currentPoin }) =>
             }`}
           >
             <p className="text-xs font-bold leading-tight">{cat.label}</p>
-            <p className="text-[10px] opacity-90 mt-0.5">{cat.range}</p>
+            <p className="text-[10.5px] font-extrabold mt-0.5 tracking-tight">{cat.levelText}</p>
+            <p className="text-[9.5px] opacity-85">{cat.range}</p>
           </div>
         ))}
       </div>

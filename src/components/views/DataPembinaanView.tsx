@@ -128,7 +128,7 @@ export const DataPembinaanView: React.FC = () => {
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-emerald-500" />
             <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white">
-              Standar 8 Tingkat Pembinaan Resmi Pesantren
+              Standar 8 Level Pembinaan Resmi Pesantren
             </h3>
           </div>
           <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
@@ -145,21 +145,21 @@ export const DataPembinaanView: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold text-[10px]">
-                    Tingkat {item.tingkat}
+                    LEVEL {item.tingkat}
                   </span>
                   <span className="text-[10px] font-bold text-rose-500">
-                    {item.rentangPoin}
+                    {item.rentangPoin || `${item.min_poin}–${item.max_poin} Poin`}
                   </span>
                 </div>
                 <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {item.kategori}
+                  {item.nama_tingkat || item.kategori}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  {item.konsekuensi}
+                  {item.konsekuensi || (item.jenis_pembinaan && item.jenis_pembinaan[0])}
                 </p>
               </div>
               <div className="mt-3 pt-2 border-t border-slate-200/60 dark:border-[#18283E] text-[10px] text-slate-400 font-medium">
-                Pihak: {item.pembina}
+                Pihak: {item.pembina || 'Musyrif & Kasie'}
               </div>
             </div>
           ))}

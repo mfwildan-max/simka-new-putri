@@ -1812,6 +1812,37 @@ export async function deletePelanggaranRecordFromDB(
 // 5. MASTER PEMBINAAN (public.master_pembinaan)
 // ==============================================================================
 
+export async function syncOfficialMasterPembinaanToDB(
+  officialList: MasterPembinaan[] = initialMasterPembinaanList
+): Promise<boolean> {
+  if (!isSupabaseConfigured()) return true;
+  try {
+    const records = officialList.map((item) => ({
+      tingkat: item.tingkat,
+      nama_tingkat: item.nama_tingkat,
+      min_poin: item.min_poin,
+      max_poin: item.max_poin,
+      jenis_pembinaan: item.jenis_pembinaan,
+      is_active: item.is_active,
+      updated_at: new Date().toISOString()
+    }));
+
+    const { error } = await supabase
+      .from('master_pembinaan')
+      .upsert(records, { onConflict: 'tingkat' });
+
+    if (error) {
+      console.warn('[SIMKA.ID] Catatan sinkronisasi master_pembinaan di Supabase:', error.message);
+      return false;
+    }
+    console.info('[SIMKA.ID] Master Pembinaan resmi (Level 1-8) berhasil disinkronkan ke Supabase.');
+    return true;
+  } catch (err) {
+    console.warn('[SIMKA.ID] Exception sinkronisasi master_pembinaan:', err);
+    return false;
+  }
+}
+
 export async function fetchMasterPembinaanFromDB(): Promise<MasterPembinaan[]> {
   if (!isSupabaseConfigured()) return initialMasterPembinaanList;
   try {
@@ -1822,24 +1853,54 @@ export async function fetchMasterPembinaanFromDB(): Promise<MasterPembinaan[]> {
       .order('tingkat', { ascending: true });
 
     if (error || !data || data.length === 0) {
+      // Jika tabel belum diisi, coba inisialisasi dengan data resmi Level 1-8
+      syncOfficialMasterPembinaanToDB(initialMasterPembinaanList).catch(() => {});
       return initialMasterPembinaanList;
     }
 
-    return data.map((row: any) => ({
-      id: String(row.id),
-      tingkat: Number(row.tingkat),
-      nama_tingkat: row.nama_tingkat || `Tingkat ${row.tingkat}`,
-      min_poin: Number(row.min_poin),
-      max_poin: Number(row.max_poin),
-      jenis_pembinaan: Array.isArray(row.jenis_pembinaan)
-        ? row.jenis_pembinaan
-        : typeof row.jenis_pembinaan === 'string'
-        ? JSON.parse(row.jenis_pembinaan)
-        : [],
-      is_active: Boolean(row.is_active),
-      created_at: row.created_at,
-      updated_at: row.updated_at
-    }));
+    const mapped = data.map((row: any) => {
+      const defaultItem = initialMasterPembinaanList.find((init) => init.tingkat === Number(row.tingkat));
+      const t = Number(row.tingkat);
+      const minP = Number(row.min_poin);
+      const maxP = Number(row.max_poin);
+      const rawNama = row.nama_tingkat || `Level ${t}`;
+      const cleanNama = rawNama.startsWith('Tingkat') ? rawNama.replace('Tingkat', 'Level') : rawNama;
+
+      return {
+        id: String(row.id),
+        tingkat: t,
+        nama_tingkat: cleanNama,
+        min_poin: minP,
+        max_poin: maxP,
+        minPoin: minP,
+        maxPoin: maxP,
+        rentangPoin: `${minP}–${maxP} Poin`,
+        kategori: defaultItem?.kategori || `Pelanggaran Level ${t}`,
+        konsekuensi: defaultItem?.konsekuensi || (Array.isArray(row.jenis_pembinaan) ? row.jenis_pembinaan[0] : '-'),
+        pembina: defaultItem?.pembina || 'Musyrif & Kasie',
+        jenis_pembinaan: Array.isArray(row.jenis_pembinaan)
+          ? row.jenis_pembinaan
+          : typeof row.jenis_pembinaan === 'string'
+          ? JSON.parse(row.jenis_pembinaan)
+          : defaultItem?.jenis_pembinaan || [],
+        is_active: Boolean(row.is_active),
+        created_at: row.created_at,
+        updated_at: row.updated_at
+      };
+    });
+
+    // Cek apakah data dari database masih memakai skema lama yang terbalik (tingkat 1 = 90-99 poin)
+    const isOldInverted = mapped.some(
+      (p) => (p.tingkat === 1 && p.min_poin >= 50) || (p.tingkat === 8 && p.min_poin <= 10)
+    );
+
+    if (isOldInverted) {
+      console.warn('[SIMKA.ID] Data master_pembinaan di Supabase terdeteksi masih menggunakan urutan terbalik lama. Menjalankan auto-sync ke urutan resmi Level 1-8...');
+      syncOfficialMasterPembinaanToDB(initialMasterPembinaanList).catch(() => {});
+      return initialMasterPembinaanList;
+    }
+
+    return mapped;
   } catch (err) {
     console.error('Error fetching master pembinaan from Supabase:', err);
     return initialMasterPembinaanList;
@@ -1854,8 +1915,9 @@ export function findPembinaanBySinglePoin(
     return null;
   }
 
+  // Gunakan aturan inklusif resmi: min_poin <= singlePoin <= max_poin (rentang 5–99)
   const match = masterList.find(
-    (item) => item.is_active && item.min_poin <= singlePoin && item.max_poin >= singlePoin
+    (item) => item.is_active && (item.min_poin ?? item.minPoin ?? 0) <= singlePoin && (item.max_poin ?? item.maxPoin ?? 0) >= singlePoin
   );
 
   return match || null;

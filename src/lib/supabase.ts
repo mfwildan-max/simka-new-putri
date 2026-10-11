@@ -330,6 +330,30 @@ export function isValidUUID(id?: string | null): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
 }
 
+/**
+ * Generates a valid standard RFC4122 UUID v4 string.
+ * Strictly uses crypto.randomUUID() when available.
+ * Never returns null, undefined, or empty string.
+ */
+export function generateUUIDv4(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // Version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // Variant 10
+    const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // ==============================================================================
 // 1. USERS & AUTHENTICATION (public.users)
 // SCHEMA AKTUAL: id, nama, username, password, jabatan, unit, is_active, created_at
@@ -506,11 +530,21 @@ export async function insertUserToDB(
       is_active: userItem.is_active !== false
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('users')
       .insert([payload])
       .select('id, nama, username, password, jabatan, unit, is_active, created_at')
       .single();
+
+    if (error && error.message?.includes('null value in column "id"')) {
+      const retry = await supabase
+        .from('users')
+        .insert([{ ...payload, id: generateUUIDv4() }])
+        .select('id, nama, username, password, jabatan, unit, is_active, created_at')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       console.error('[INSERT USER ERROR]', error);
@@ -921,10 +955,21 @@ export async function resetUserPasswordInDB(
 export async function fetchSantriFromDB(): Promise<Santri[] | null> {
   if (!isSupabaseConfigured()) return null;
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('santri')
-      .select('id, kode_santri, nama, kelas, unit, musyrif, asrama, status_pembinaan, created_at')
+      .select('*')
       .order('nama', { ascending: true });
+
+    if (error || !data) {
+      const fallback = await supabase
+        .from('santri')
+        .select('id, kode_santri, nama, kelas, unit, musyrif, asrama, status_pembinaan, created_at')
+        .order('nama', { ascending: true });
+      if (!fallback.error && fallback.data) {
+        data = fallback.data;
+        error = null;
+      }
+    }
 
     if (error || !data) {
       logAuthDebug('Fetch santri from Supabase error/notice:', error?.message);
@@ -941,8 +986,10 @@ export async function fetchSantriFromDB(): Promise<Santri[] | null> {
       unit: (row.unit as UnitPesantren) || 'SMP',
       totalPoin: 0, // Will be computed from violation logs
       statusPembinaan: row.status_pembinaan || 'Baik',
-      musyrifNama: row.musyrif || undefined,
-      asrama: row.asrama || undefined
+      musyrifNama: row.musyrif || row.musyrif_nama || undefined,
+      musyrifId: row.musyrif_id || undefined,
+      asrama: row.asrama || undefined,
+      kamar: row.kamar || row.nomor_kamar || undefined
     }));
 
     return sortSantriList(mapped);
@@ -1000,11 +1047,21 @@ export async function insertSantriToDB(
       status_pembinaan: santriData.statusPembinaan || 'Baik'
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('santri')
       .insert([payload])
       .select('id, kode_santri, nama, kelas, unit, musyrif, asrama, status_pembinaan, created_at')
       .single();
+
+    if (error && error.message?.includes('null value in column "id"')) {
+      const retry = await supabase
+        .from('santri')
+        .insert([{ ...payload, id: generateUUIDv4() }])
+        .select('id, kode_santri, nama, kelas, unit, musyrif, asrama, status_pembinaan, created_at')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       console.error('[INSERT SANTRI ERROR]', error);
@@ -1359,11 +1416,21 @@ export async function insertMasterPelanggaranToDB(
       hukuman: item.konsekuensi || '-'
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('master_pelanggaran')
       .insert([payload])
       .select('id, kode, nama, poin, kategori, hukuman, created_at')
       .single();
+
+    if (error && error.message?.includes('null value in column "id"')) {
+      const retry = await supabase
+        .from('master_pelanggaran')
+        .insert([{ ...payload, id: generateUUIDv4() }])
+        .select('id, kode, nama, poin, kategori, hukuman, created_at')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       console.error('[INSERT MASTER ERROR]', error);
@@ -1546,45 +1613,76 @@ export async function importMasterPelanggaranBatchToDB(
 /**
  * Fetch all violation transaction logs from Supabase public.pelanggaran table.
  */
-export async function fetchPelanggaranFromDB(): Promise<RiwayatPelanggaran[] | null> {
+export async function fetchPelanggaranFromDB(
+  knownSantri?: Santri[],
+  knownMaster?: Pelanggaran[],
+  knownUsers?: UserAccount[]
+): Promise<RiwayatPelanggaran[] | null> {
   if (!isSupabaseConfigured()) return null;
   try {
-    let { data, error } = await supabase
+    let data: any[] | null = null;
+    let fetchError: any = null;
+
+    // 1. Try selecting all columns directly from public.pelanggaran
+    const res = await supabase
       .from('pelanggaran')
-      .select(`
-        id,
-        santri_id,
-        pelanggaran_id,
-        tanggal_waktu,
-        poin,
-        hukuman,
-        catatan,
-        dicatat_oleh,
-        created_at,
-        santri:santri_id (id, kode_santri, nama, kelas, unit),
-        master_pelanggaran:pelanggaran_id (id, kode, nama),
-        users:dicatat_oleh (id, nama, jabatan)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
-    // Fallback if joined relation syntax fails in Supabase PostgREST
-    if (error || !data) {
-      const fallback = await supabase
+    if (!res.error && res.data) {
+      data = res.data;
+    } else {
+      fetchError = res.error;
+      // Secondary attempt with joined syntax if foreign keys are configured
+      const joinedRes = await supabase
         .from('pelanggaran')
-        .select('*')
+        .select(`
+          *,
+          santri:santri_id (id, kode_santri, nama, kelas, unit),
+          master_pelanggaran:jenis_pelanggaran_id (id, kode, jenis, poin, konsekuensi)
+        `)
         .order('created_at', { ascending: false });
-      if (!fallback.error && fallback.data) {
-        data = fallback.data;
-        error = null;
+
+      if (!joinedRes.error && joinedRes.data) {
+        data = joinedRes.data;
+        fetchError = null;
       }
     }
 
-    if (error || !data) {
-      logAuthDebug('Fetch pelanggaran from Supabase error/notice:', error?.message);
+    if (fetchError || !data) {
+      logAuthDebug('Fetch pelanggaran from Supabase notice:', fetchError?.message);
       return null;
     }
 
     logAuthDebug(`Fetched ${data.length} records from public.pelanggaran in Supabase.`);
+
+    // Build lookup indexes for resilient data hydration
+    const santriMapById = new Map<string, Santri>();
+    const santriMapByName = new Map<string, Santri>();
+    if (knownSantri && knownSantri.length > 0) {
+      knownSantri.forEach((s) => {
+        if (s.id) santriMapById.set(String(s.id), s);
+        if (s.nama) santriMapByName.set(s.nama.toLowerCase().trim(), s);
+      });
+    }
+
+    const masterMapById = new Map<string, Pelanggaran>();
+    const masterMapByKode = new Map<string, Pelanggaran>();
+    const masterMapByName = new Map<string, Pelanggaran>();
+    if (knownMaster && knownMaster.length > 0) {
+      knownMaster.forEach((m) => {
+        if (m.id) masterMapById.set(String(m.id), m);
+        if (m.kode) masterMapByKode.set(m.kode.toLowerCase().trim(), m);
+        if (m.jenis) masterMapByName.set(m.jenis.toLowerCase().trim(), m);
+      });
+    }
+
+    const userMapById = new Map<string, UserAccount>();
+    if (knownUsers && knownUsers.length > 0) {
+      knownUsers.forEach((u) => {
+        if (u.id) userMapById.set(String(u.id), u);
+      });
+    }
 
     return data.map((row: any) => {
       const rawDate = row.tanggal_waktu || row.created_at;
@@ -1596,22 +1694,53 @@ export async function fetchPelanggaranFromDB(): Promise<RiwayatPelanggaran[] | n
       const masterObj = row.master_pelanggaran || {};
       const userObj = row.users || {};
 
+      const rowSantriId = String(row.santri_id || '');
+      const rowSantriNama = String(santriObj.nama || row.santri_nama || '');
+      const rowJenisId = String(row.jenis_pelanggaran_id || row.pelanggaran_id || '');
+      const rowJenisNama = String(masterObj.jenis || masterObj.nama || row.jenis_pelanggaran_nama || '');
+      const rowPencatatId = row.pencatat_id ? String(row.pencatat_id) : (row.dicatat_oleh ? String(row.dicatat_oleh) : undefined);
+
+      // Hydrate Santri data
+      const matchedSantri =
+        (rowSantriId && santriMapById.get(rowSantriId)) ||
+        (rowSantriNama && santriMapByName.get(rowSantriNama.toLowerCase().trim()));
+
+      const finalSantriId = rowSantriId || matchedSantri?.id || '';
+      const finalSantriNama = rowSantriNama || matchedSantri?.nama || 'Santri';
+      const finalSantriKelas = String(santriObj.kelas || row.santri_kelas || matchedSantri?.kelas || '-');
+      const finalSantriUnit = (santriObj.unit || row.santri_unit || matchedSantri?.unit || 'SMP') as UnitPesantren;
+
+      // Hydrate Master Pelanggaran data
+      const matchedMaster =
+        (rowJenisId && masterMapById.get(rowJenisId)) ||
+        (rowJenisNama && masterMapByName.get(rowJenisNama.toLowerCase().trim())) ||
+        (rowJenisId && masterMapByKode.get(rowJenisId.toLowerCase().trim()));
+
+      const finalJenisId = rowJenisId || matchedMaster?.id || '';
+      const finalJenisNama = rowJenisNama || matchedMaster?.jenis || 'Pelanggaran Tata Tertib';
+      const finalPoin = Number(row.poin) > 0 ? Number(row.poin) : (matchedMaster?.poin || 5);
+      const finalHukuman = String(row.hukuman || matchedMaster?.konsekuensi || '-');
+
+      // Hydrate Pencatat data
+      const matchedUser = rowPencatatId ? userMapById.get(rowPencatatId) : undefined;
+      const finalPencatat = String(userObj.nama || row.pencatat_nama || matchedUser?.nama || 'Petugas');
+
       return {
         id: String(row.id),
         tanggal: formattedTanggal,
         timestamp: row.tanggal_waktu || row.created_at || new Date().toISOString(),
-        santriId: String(row.santri_id || ''),
-        santriNama: String(santriObj.nama || row.santri_nama || ''),
-        santriKelas: String(santriObj.kelas || row.santri_kelas || ''),
-        santriUnit: (santriObj.unit || row.santri_unit || 'SMP') as UnitPesantren,
-        jenisPelanggaranId: String(row.pelanggaran_id || row.jenis_pelanggaran_id || ''),
-        jenisPelanggaranNama: String(masterObj.nama || row.jenis_pelanggaran_nama || ''),
-        poin: Number(row.poin) || 0,
-        hukuman: String(row.hukuman || '-'),
-        status: (row.status as 'Selesai' | 'Belum Selesai') || (Number(row.poin) >= 50 ? 'Belum Selesai' : 'Selesai'),
+        santriId: finalSantriId,
+        santriNama: finalSantriNama,
+        santriKelas: finalSantriKelas,
+        santriUnit: finalSantriUnit,
+        jenisPelanggaranId: finalJenisId,
+        jenisPelanggaranNama: finalJenisNama,
+        poin: finalPoin,
+        hukuman: finalHukuman,
+        status: (row.status as 'Selesai' | 'Belum Selesai') || (finalPoin >= 50 ? 'Belum Selesai' : 'Selesai'),
         catatan: row.catatan || undefined,
-        pencatat: String(userObj.nama || row.pencatat_nama || 'Petugas'),
-        pencatatId: row.dicatat_oleh ? String(row.dicatat_oleh) : (row.pencatat_id ? String(row.pencatat_id) : undefined)
+        pencatat: finalPencatat,
+        pencatatId: rowPencatatId
       };
     });
   } catch (err: any) {
@@ -1622,9 +1751,12 @@ export async function fetchPelanggaranFromDB(): Promise<RiwayatPelanggaran[] | n
 
 /**
  * Record a new violation transaction in Supabase public.pelanggaran.
+ * Guarantees a valid, non-null UUID is always assigned to column "id".
+ * Resilient to different column variations (Schema A with full fields vs Schema B with minimal fields).
  */
 export async function insertPelanggaranToDB(
   data: {
+    id?: string;
     santriId: string;
     santriNama: string;
     santriKelas: string;
@@ -1654,69 +1786,170 @@ export async function insertPelanggaranToDB(
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
   const formattedTanggal = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}.${String(now.getMinutes()).padStart(2, '0')} WIB`;
 
+  // Ensure id is always a valid standard UUID
+  const validId = (data.id && isValidUUID(data.id))
+    ? data.id.trim()
+    : generateUUIDv4();
+
+  const constructedData: RiwayatPelanggaran = {
+    id: validId,
+    tanggal: formattedTanggal,
+    timestamp: now.toISOString(),
+    santriId: data.santriId,
+    santriNama: data.santriNama,
+    santriKelas: data.santriKelas,
+    santriUnit: data.santriUnit,
+    jenisPelanggaranId: data.jenisPelanggaranId,
+    jenisPelanggaranNama: data.jenisPelanggaranNama,
+    poin: data.poin,
+    hukuman: data.hukuman,
+    status: data.poin >= 50 ? 'Belum Selesai' : 'Selesai',
+    catatan: data.catatan,
+    pencatat: data.pencatatNama,
+    pencatatId: data.pencatatId
+  };
+
   if (!isSupabaseConfigured()) {
     return {
       success: true,
-      data: {
-        id: `log-${Date.now()}`,
-        tanggal: formattedTanggal,
-        timestamp: now.toISOString(),
-        santriId: data.santriId,
-        santriNama: data.santriNama,
-        santriKelas: data.santriKelas,
-        santriUnit: data.santriUnit,
-        jenisPelanggaranId: data.jenisPelanggaranId,
-        jenisPelanggaranNama: data.jenisPelanggaranNama,
-        poin: data.poin,
-        hukuman: data.hukuman,
-        status: data.poin >= 50 ? 'Belum Selesai' : 'Selesai',
-        catatan: data.catatan,
-        pencatat: data.pencatatNama,
-        pencatatId: data.pencatatId
-      }
+      data: constructedData
     };
   }
 
   try {
-    const payload: any = {
+    let insertedRow: any = null;
+    let insertError: any = null;
+
+    // Plan A: Insert using official complete schema (from supabaseSchema.ts)
+    const payloadSchemaA: any = {
+      id: validId,
       santri_id: data.santriId,
-      pelanggaran_id: isValidUUID(data.jenisPelanggaranId) ? data.jenisPelanggaranId : null,
-      tanggal_waktu: now.toISOString(),
+      santri_unit: data.santriUnit,
+      jenis_pelanggaran_id: data.jenisPelanggaranId || null,
+      jenis_pelanggaran_nama: data.jenisPelanggaranNama,
       poin: data.poin,
       hukuman: data.hukuman || '-',
+      status: data.poin >= 50 ? 'Belum Selesai' : 'Selesai',
       catatan: data.catatan || null,
-      dicatat_oleh: (data.pencatatId && isValidUUID(data.pencatatId)) ? data.pencatatId : null
+      pencatat_id: data.pencatatId || null,
+      pencatat_nama: data.pencatatNama,
+      pembinaan_tingkat: data.pembinaanTingkat || null,
+      rekomendasi_pembinaan: data.rekomendasiPembinaan || [],
+      created_at: now.toISOString()
     };
 
-    const { data: insertedRow, error: insertError } = await supabase
+    const resA = await supabase
       .from('pelanggaran')
-      .insert([payload])
-      .select('id, santri_id, pelanggaran_id, tanggal_waktu, poin, hukuman, catatan, dicatat_oleh, created_at')
-      .single();
+      .insert([payloadSchemaA])
+      .select('*');
+
+    if (!resA.error && resA.data && resA.data.length > 0) {
+      insertedRow = resA.data[0];
+    } else if (resA.error) {
+      insertError = resA.error;
+      logAuthDebug('[INSERT SCHEMA A NOTICE]:', resA.error.message);
+
+      // A1. If foreign key violation on jenis_pelanggaran_id or pencatat_id, retry with null IDs
+      if (resA.error.message?.includes('violates foreign key constraint')) {
+        const payloadSafeFK = {
+          ...payloadSchemaA,
+          jenis_pelanggaran_id: null,
+          pencatat_id: null
+        };
+        const retryFK = await supabase
+          .from('pelanggaran')
+          .insert([payloadSafeFK])
+          .select('*');
+        if (!retryFK.error && retryFK.data && retryFK.data.length > 0) {
+          insertedRow = retryFK.data[0];
+          insertError = null;
+        } else {
+          insertError = retryFK.error;
+        }
+      }
+
+      // A2. If database identity/DEFAULT constraint rejects client-provided id, retry without id
+      if (
+        insertError &&
+        (insertError.message?.includes('cannot insert a non-DEFAULT') ||
+         insertError.message?.includes('identity column') ||
+         insertError.message?.includes('GENERATED ALWAYS'))
+      ) {
+        const { id: _omitId, ...payloadWithoutId } = payloadSchemaA;
+        const retryDefault = await supabase
+          .from('pelanggaran')
+          .insert([payloadWithoutId])
+          .select('*');
+        if (!retryDefault.error && retryDefault.data && retryDefault.data.length > 0) {
+          insertedRow = retryDefault.data[0];
+          insertError = null;
+        } else {
+          insertError = retryDefault.error;
+        }
+      }
+
+      // Plan B: If columns don't exist (e.g. minimal schema with santri_id, pelanggaran_id, dicatat_oleh)
+      if (
+        insertError &&
+        (insertError.message?.includes('Could not find') ||
+         insertError.message?.includes('column') ||
+         insertError.message?.includes('does not exist'))
+      ) {
+        const payloadSchemaB: any = {
+          id: validId,
+          santri_id: data.santriId,
+          pelanggaran_id: isValidUUID(data.jenisPelanggaranId) ? data.jenisPelanggaranId : null,
+          tanggal_waktu: now.toISOString(),
+          poin: data.poin,
+          hukuman: data.hukuman || '-',
+          catatan: data.catatan || null,
+          dicatat_oleh: (data.pencatatId && isValidUUID(data.pencatatId)) ? data.pencatatId : null
+        };
+
+        const resB = await supabase
+          .from('pelanggaran')
+          .insert([payloadSchemaB])
+          .select('*');
+
+        if (!resB.error && resB.data && resB.data.length > 0) {
+          insertedRow = resB.data[0];
+          insertError = null;
+        } else if (resB.error) {
+          if (
+            resB.error.message?.includes('cannot insert a non-DEFAULT') ||
+            resB.error.message?.includes('GENERATED ALWAYS')
+          ) {
+            const { id: _omitB, ...payloadBNoId } = payloadSchemaB;
+            const resBNoId = await supabase
+              .from('pelanggaran')
+              .insert([payloadBNoId])
+              .select('*');
+            if (!resBNoId.error && resBNoId.data && resBNoId.data.length > 0) {
+              insertedRow = resBNoId.data[0];
+              insertError = null;
+            } else {
+              insertError = resBNoId.error;
+            }
+          } else {
+            insertError = resB.error;
+          }
+        }
+      }
+    }
 
     if (insertError) {
-      console.error('[INSERT PELANGGARAN ERROR]', insertError);
+      console.error('[INSERT PELANGGARAN ERROR FINAL]:', insertError);
       return { success: false, error: translateSupabaseError(insertError) };
     }
+
+    const finalInsertedId = insertedRow?.id ? String(insertedRow.id) : validId;
 
     return {
       success: true,
       data: {
-        id: String(insertedRow.id),
-        tanggal: formattedTanggal,
-        timestamp: insertedRow.tanggal_waktu || insertedRow.created_at || now.toISOString(),
-        santriId: data.santriId,
-        santriNama: data.santriNama,
-        santriKelas: data.santriKelas,
-        santriUnit: data.santriUnit,
-        jenisPelanggaranId: data.jenisPelanggaranId,
-        jenisPelanggaranNama: data.jenisPelanggaranNama,
-        poin: data.poin,
-        hukuman: data.hukuman,
-        status: data.poin >= 50 ? 'Belum Selesai' : 'Selesai',
-        catatan: data.catatan,
-        pencatat: data.pencatatNama,
-        pencatatId: data.pencatatId
+        ...constructedData,
+        id: finalInsertedId,
+        timestamp: insertedRow?.tanggal_waktu || insertedRow?.created_at || now.toISOString()
       }
     };
   } catch (err: any) {
@@ -1725,19 +1958,85 @@ export async function insertPelanggaranToDB(
   }
 }
 
+/**
+ * Updates the completion status of a violation in Supabase public.pelanggaran.
+ * Preserves the existing ID and does not generate a new ID.
+ */
 export async function updatePelanggaranStatusInDB(
   id: string,
   status: 'Selesai' | 'Belum Selesai'
 ): Promise<{ success: boolean; error?: string }> {
+  if (!id) {
+    return { success: false, error: 'ID pelanggaran tidak valid.' };
+  }
   if (!isSupabaseConfigured()) return { success: true };
   try {
-    const { error } = await supabase
+    let { error } = await supabase
       .from('pelanggaran')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', id);
 
+    // Fallback if updated_at column is not present in the table
+    if (error && (error.message?.includes('updated_at') || error.message?.includes('Could not find'))) {
+      const retry = await supabase
+        .from('pelanggaran')
+        .update({ status })
+        .eq('id', id);
+      error = retry.error;
+    }
+
     if (error) {
       console.error('[UPDATE STATUS PELANGGARAN ERROR]', error);
+      return { success: false, error: translateSupabaseError(error) };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: translateSupabaseError(err) };
+  }
+}
+
+/**
+ * Updates an existing violation record's details in Supabase public.pelanggaran.
+ * Strictly preserves the existing ID and never creates a new ID.
+ */
+export async function updatePelanggaranRecordInDB(
+  id: string,
+  updates: {
+    poin?: number;
+    hukuman?: string;
+    catatan?: string;
+    status?: 'Selesai' | 'Belum Selesai';
+  }
+): Promise<{ success: boolean; error?: string }> {
+  if (!id) {
+    return { success: false, error: 'ID pelanggaran tidak valid untuk update.' };
+  }
+  if (!isSupabaseConfigured()) return { success: true };
+  try {
+    const payload: any = {
+      updated_at: new Date().toISOString()
+    };
+    if (updates.poin !== undefined) payload.poin = updates.poin;
+    if (updates.hukuman !== undefined) payload.hukuman = updates.hukuman;
+    if (updates.catatan !== undefined) payload.catatan = updates.catatan;
+    if (updates.status !== undefined) payload.status = updates.status;
+
+    let { error } = await supabase
+      .from('pelanggaran')
+      .update(payload)
+      .eq('id', id);
+
+    if (error && (error.message?.includes('updated_at') || error.message?.includes('Could not find'))) {
+      const { updated_at: _omit, ...payloadWithoutUpdatedAt } = payload;
+      const retry = await supabase
+        .from('pelanggaran')
+        .update(payloadWithoutUpdatedAt)
+        .eq('id', id);
+      error = retry.error;
+    }
+
+    if (error) {
+      console.error('[UPDATE PELANGGARAN RECORD ERROR]', error);
       return { success: false, error: translateSupabaseError(error) };
     }
     return { success: true };
@@ -2018,11 +2317,21 @@ export async function insertPembinaanRecordToDB(
       status: 'BELUM DIMULAI'
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('pembinaan')
       .insert([payload])
       .select('*')
       .single();
+
+    if (error && error.message?.includes('null value in column "id"')) {
+      const retry = await supabase
+        .from('pembinaan')
+        .insert([{ ...payload, id: generateUUIDv4() }])
+        .select('*')
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       console.error('[INSERT PEMBINAAN ERROR]', error);

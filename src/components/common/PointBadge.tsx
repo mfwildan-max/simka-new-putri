@@ -23,7 +23,7 @@ export const PointBadge: React.FC<PointBadgeProps> = ({ points, showSuffix = tru
   }
 
   const sizeClasses = {
-    sm: 'text-xs px-2 py-0.5',
+    sm: 'text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5',
     md: 'text-xs px-2.5 py-1',
     lg: 'text-sm px-3.5 py-1.5'
   }[size];

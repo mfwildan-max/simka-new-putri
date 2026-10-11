@@ -125,8 +125,8 @@ export function can(user: UserAccount | null | undefined, permission: AppPermiss
 
   switch (permission) {
     case 'view_dashboard':
-      // ONLY KOORDINATOR and KASIE_KEPESANTRENAN can view Dashboard. MUSYRIF is STRICTLY forbidden.
-      return user.role === 'KOORDINATOR' || user.role === 'KASIE_KEPESANTRENAN';
+      // Dashboard is accessible to all roles: Musyrif, Koordinator, Kasie/Kabid (read-only for all).
+      return true;
 
     case 'view_students':
       return true;
@@ -263,11 +263,13 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
     return true;
   }
 
-  switch (role) {
+  const normalizedRole: UserRole = mapJabatanToRole(role);
+
+  switch (normalizedRole) {
     case 'MUSYRIF':
-      // Musyrif has: Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master), Input Mutaba'ah, Akun Saya.
-      // Dashboard is STRICTLY FORBIDDEN.
+      // Musyrif has: Dashboard (read-only), Rekap Pelanggaran, Data Santri, Catat Pelanggaran, Data Pelanggaran (Master), Input Mutaba'ah, Data Pembinaan, Riwayat Pembinaan, Akun Saya.
       return (
+        route === 'dashboard' ||
         route === 'rekap-pelanggaran' ||
         route === 'data-santri' ||
         route === 'catat-pelanggaran' ||
@@ -304,11 +306,9 @@ export function canRoleAccessRoute(role: UserRole, route: PageRoute): boolean {
 
 /**
  * Returns default landing page for a role after successful login.
- * Musyrif starts on Rekap Pelanggaran; Koordinator & Kasie start on Dashboard.
+ * All roles start on Dashboard.
  */
-export function getDefaultRouteForRole(role: UserRole): PageRoute {
-  if (role === 'MUSYRIF') {
-    return 'rekap-pelanggaran';
-  }
+export function getDefaultRouteForRole(role: UserRole | string): PageRoute {
+  // All roles (Musyrif, Koordinator, Kasie Kepesantrenan / Superadmin) start on Dashboard
   return 'dashboard';
 }

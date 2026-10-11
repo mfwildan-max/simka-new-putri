@@ -40,12 +40,21 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
 
   useEffect(() => {
     if (santri) {
+      // Find musyrif by id or exact name match from usersList
+      let initialMusyrifId = santri.musyrifId || '';
+      if (!initialMusyrifId && santri.musyrifNama) {
+        const found = usersList.find(
+          (u) => u.role === 'MUSYRIF' && u.nama.toLowerCase().trim() === santri.musyrifNama?.toLowerCase().trim()
+        );
+        if (found) initialMusyrifId = found.id;
+      }
+
       setFormData({
         nis: santri.nis || '',
         nama: santri.nama || '',
         kelas: santri.kelas || '',
         unit: santri.unit || 'SMP',
-        musyrifId: santri.musyrifId || '',
+        musyrifId: initialMusyrifId,
         asrama: santri.asrama || '',
         kamar: santri.kamar || '',
         keterangan: santri.keterangan || '',
@@ -56,7 +65,7 @@ export const EditSantriModal: React.FC<EditSantriModalProps> = ({ isOpen, santri
       setIsDeleting(false);
       setIsSaving(false);
     }
-  }, [santri, isOpen]);
+  }, [santri, isOpen, usersList]);
 
   const isSuperadmin = user?.role === 'KASIE_KEPESANTRENAN';
 

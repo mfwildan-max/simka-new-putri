@@ -76,3 +76,22 @@ export function sortMasterPelanggaranList(list: Pelanggaran[]): Pelanggaran[] {
     });
   });
 }
+
+/**
+ * Sort Santri for Ringkasan Poin / Leaderboard:
+ * 1. Total Poin DESC (tertinggi -> terendah)
+ * 2. Jika poin sama: Nama Santri ASC (A -> Z)
+ */
+export function sortSantriByPoints(list: Santri[]): Santri[] {
+  return [...list].sort((a, b) => {
+    const poinA = Number(a.totalPoin) || 0;
+    const poinB = Number(b.totalPoin) || 0;
+    if (poinB !== poinA) {
+      return poinB - poinA;
+    }
+    return (a.nama || '').trim().localeCompare((b.nama || '').trim(), undefined, {
+      numeric: true,
+      sensitivity: 'base'
+    });
+  });
+}

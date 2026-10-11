@@ -65,7 +65,7 @@ const AppContent: React.FC = () => {
       case 'akun':
         return <AkunView />;
       default:
-        return user.role === 'MUSYRIF' ? <RekapPelanggaranView /> : <DashboardView />;
+        return <DashboardView />;
     }
   };
 
@@ -80,7 +80,7 @@ const AppContent: React.FC = () => {
         <TopNavigation onOpenSidebar={() => setSidebarOpen(true)} />
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <ErrorBoundary fallbackTitle="Terjadi Kendala Memuat Halaman">
             {renderActiveView()}
           </ErrorBoundary>

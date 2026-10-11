@@ -25,7 +25,9 @@ import {
   Edit,
   Eye,
   Users,
-  Trash2
+  Trash2,
+  UserX,
+  Link2
 } from 'lucide-react';
 
 export const DataSantriView: React.FC = () => {
@@ -469,11 +471,45 @@ export const DataSantriView: React.FC = () => {
                         </span>
                       </td>
 
-                      <td className="py-2.5 px-3.5 max-w-[180px]">
-                        <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate" title={santri.musyrifNama || '-'}>
-                          {santri.musyrifNama || '-'}
-                        </div>
-                        <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1 truncate">
+                      <td className="py-2.5 px-3.5 max-w-[200px]">
+                        {santri.musyrifNama ? (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                santri.musyrifId ? 'bg-emerald-500' : 'bg-amber-400'
+                              }`}
+                              title={santri.musyrifId ? 'Musyrif terhubung dengan akun pengguna' : 'Nama musyrif belum terhubung akun'}
+                            />
+                            <span
+                              className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 truncate"
+                              title={santri.musyrifNama}
+                            >
+                              {santri.musyrifNama}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40">
+                              <UserX className="w-2.5 h-2.5" />
+                              <span>Belum Terhubung</span>
+                            </span>
+                            {isSuperadmin && (
+                              <button
+                                type="button"
+                                title="Hubungkan ke Akun Musyrif"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSantri(santri);
+                                }}
+                                className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-0.5"
+                              >
+                                <Link2 className="w-2.5 h-2.5" />
+                                <span>Hubungkan</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1 truncate mt-0.5">
                           <Home className="w-3 h-3 text-slate-400 shrink-0" />
                           <span className="truncate">{santri.asrama || 'Asrama'} {santri.kamar ? `• ${santri.kamar}` : ''}</span>
                         </div>

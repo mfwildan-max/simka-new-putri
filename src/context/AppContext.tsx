@@ -58,10 +58,11 @@ import {
   getRoleDisplayName,
   getUnitDisplayName,
   hashPassword,
-  hashPasswordSync 
+  hashPasswordSync,
+  mapJabatanToRole
 } from '../lib/auth';
 import { getKategoriFromPoin } from '../components/common/PointBadge';
-import { sortSantriList, sortMasterPelanggaranList } from '../lib/sortingHelper';
+import { sortSantriList, sortMasterPelanggaranList, sortSantriByPoints } from '../lib/sortingHelper';
 
 export interface ToastInfo {
   id: string;
@@ -267,6 +268,12 @@ interface AppContextType {
   getMonthlyData: () => { bulan: string; jumlah: number }[];
   getDonutData: () => { name: string; value: number; color: string }[];
   getTop5Santri: () => Santri[];
+  getAllSortedSantriByPoints: () => Santri[];
+  getDashboardSantriBinaan: () => {
+    santri: Santri[];
+    subtitle: string;
+    isOwnBinaan: boolean;
+  };
   getTopPelanggaran: () => Array<{ id: string; nama: string; kategori: string; count: number; totalPoin: number }>;
   getRecentPembinaan: () => PembinaanRecord[];
   getRecentActivities: () => ActivityItem[];
@@ -481,50 +488,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         effectivePelanggaran = allRiwayatList;
       }
 
-      if (dbSantri !== null) {
-        // Calculate dynamic totalPoin for each santri from violation transactions
-        const santriWithPoin = dbSantri.map((santri) => {
-          const matchingViolations = (effectivePelanggaran || []).filter(
-            (v) => v.santriId === santri.id || (v.santriNama && v.santriNama.toLowerCase() === santri.nama.toLowerCase() && v.santriUnit === santri.unit)
-          );
-          const totalPoin = matchingViolations.reduce((sum, item) => sum + (Number(item.poin) || 0), 0);
-          let statusPembinaan = santri.statusPembinaan || 'Baik';
-          if (totalPoin >= 100) statusPembinaan = 'SP 3';
-          else if (totalPoin >= 70) statusPembinaan = 'SP 2';
-          else if (totalPoin >= 40) statusPembinaan = 'SP 1';
-          else if (totalPoin > 0) statusPembinaan = 'Peringatan Lisan';
-
-          return {
-            ...santri,
-            totalPoin,
-            statusPembinaan
-          };
-        });
-
-        const sortedSantri = sortSantriList(santriWithPoin);
-        setAllSantriList(sortedSantri);
-        localStorage.setItem('simka_santri', JSON.stringify(sortedSantri));
-      }
-
-      if (dbMasterPelanggaran !== null && dbMasterPelanggaran.length > 0) {
-        const sortedPelanggaran = sortMasterPelanggaranList(dbMasterPelanggaran);
-        setPelanggaranList(sortedPelanggaran);
-        localStorage.setItem('simka_master_pelanggaran', JSON.stringify(sortedPelanggaran));
-      }
-
-      if (dbMasterPembinaan !== null && dbMasterPembinaan.length > 0) {
-        setMasterPembinaanList(dbMasterPembinaan);
-        localStorage.setItem('simka_master_pembinaan', JSON.stringify(dbMasterPembinaan));
-      }
-
-      if (dbUsers !== null && dbUsers.length > 0) {
-        setUsersList(dbUsers);
-        localStorage.setItem('simka_users', JSON.stringify(dbUsers));
+      let effectiveUsers = dbUsers;
+      if (effectiveUsers !== null && effectiveUsers.length > 0) {
+        setUsersList(effectiveUsers);
+        localStorage.setItem('simka_users', JSON.stringify(effectiveUsers));
 
         // Keep current logged-in user profile & unit in sync with Supabase
         setUser((currentUser) => {
           if (!currentUser) return null;
-          const fresh = dbUsers.find(
+          const fresh = effectiveUsers!.find(
             (u) => (u.id && u.id === currentUser.id) || (u.username && u.username.toLowerCase() === currentUser.username.toLowerCase())
           );
           if (fresh) {
@@ -545,6 +517,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           return currentUser;
         });
+      } else {
+        effectiveUsers = usersList;
+      }
+
+      if (dbSantri !== null) {
+        // Build fast lookup maps for Musyrif users
+        const musyrifByIdMap = new Map<string, UserAccount>();
+        const musyrifByNameMap = new Map<string, UserAccount>();
+        (effectiveUsers || []).forEach((u) => {
+          if (u.role === 'MUSYRIF') {
+            if (u.id) musyrifByIdMap.set(u.id, u);
+            if (u.nama) musyrifByNameMap.set(u.nama.toLowerCase().trim(), u);
+          }
+        });
+
+        // Calculate dynamic totalPoin and sync Musyrif relations
+        const santriWithPoin = dbSantri.map((santri) => {
+          const matchingViolations = (effectivePelanggaran || []).filter(
+            (v) => v.santriId === santri.id || (v.santriNama && v.santriNama.toLowerCase() === santri.nama.toLowerCase() && v.santriUnit === santri.unit)
+          );
+          const totalPoin = matchingViolations.reduce((sum, item) => sum + (Number(item.poin) || 0), 0);
+          let statusPembinaan = santri.statusPembinaan || 'Baik';
+          if (totalPoin >= 100) statusPembinaan = 'SP 3';
+          else if (totalPoin >= 70) statusPembinaan = 'SP 2';
+          else if (totalPoin >= 40) statusPembinaan = 'SP 1';
+          else if (totalPoin > 0) statusPembinaan = 'Peringatan Lisan';
+
+          // Sync Musyrif relation stably:
+          // 1. If musyrifId is present, resolve to current active user name
+          // 2. If musyrifId is missing but musyrifNama matches exactly a Musyrif user, link them
+          let matchedMusyrifId = santri.musyrifId;
+          let matchedMusyrifNama = santri.musyrifNama;
+
+          if (matchedMusyrifId && musyrifByIdMap.has(matchedMusyrifId)) {
+            matchedMusyrifNama = musyrifByIdMap.get(matchedMusyrifId)!.nama;
+          } else if (matchedMusyrifNama) {
+            const cleanName = matchedMusyrifNama.toLowerCase().trim();
+            if (musyrifByNameMap.has(cleanName)) {
+              const matchedUser = musyrifByNameMap.get(cleanName)!;
+              matchedMusyrifId = matchedUser.id;
+              matchedMusyrifNama = matchedUser.nama;
+            }
+          }
+
+          return {
+            ...santri,
+            musyrifId: matchedMusyrifId,
+            musyrifNama: matchedMusyrifNama,
+            totalPoin,
+            statusPembinaan
+          };
+        });
+
+        const sortedSantri = sortSantriList(santriWithPoin);
+        setAllSantriList(sortedSantri);
+        localStorage.setItem('simka_santri', JSON.stringify(sortedSantri));
+      }
+
+      if (dbMasterPelanggaran !== null && dbMasterPelanggaran.length > 0) {
+        const sortedPelanggaran = sortMasterPelanggaranList(dbMasterPelanggaran);
+        setPelanggaranList(sortedPelanggaran);
+        localStorage.setItem('simka_master_pelanggaran', JSON.stringify(sortedPelanggaran));
+      }
+
+      if (dbMasterPembinaan !== null && dbMasterPembinaan.length > 0) {
+        setMasterPembinaanList(dbMasterPembinaan);
+        localStorage.setItem('simka_master_pembinaan', JSON.stringify(dbMasterPembinaan));
       }
 
       if (dbPembinaan !== null) {
@@ -1690,8 +1729,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const singlePoin = targetPelanggaran.poin;
     const rekomendasi = getPembinaanBySinglePoin(singlePoin);
 
+    // Form frontend UUID using native crypto.randomUUID()
+    const newViolationId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : undefined;
+
     const dbRes = await insertPelanggaranToDB(
       {
+        id: newViolationId,
         santriId: targetSantri.id,
         santriNama: targetSantri.nama,
         santriKelas: targetSantri.kelas,
@@ -2079,9 +2124,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getTop5Santri = (): Santri[] => {
-    return [...santriList]
-      .sort((a, b) => b.totalPoin - a.totalPoin)
-      .slice(0, 5);
+    return sortSantriByPoints(santriList).slice(0, 5);
+  };
+
+  const getAllSortedSantriByPoints = (): Santri[] => {
+    return sortSantriByPoints(santriList);
+  };
+
+  /**
+   * Aturan data pada kartu "ANAK BINAAN — RINGKASAN POIN" Dashboard:
+   * A. Jika Musyrif memiliki anak binaan (terhubung musyrifId atau nama, unit sama):
+   *    - Tampilkan santri miliknya, urutkan poin tertinggi -> terendah, lalu nama alfabetis.
+   * B. Jika Musyrif belum memiliki anak binaan atau hasil relasi kosong:
+   *    - Tampilkan santri dengan poin tertinggi di unit Musyrif tersebut.
+   *    - Keterangan: "Santri dengan poin tertinggi di unit Anda — anak binaan belum terhubung."
+   * C. Jika Koordinator:
+   *    - Tampilkan santri dengan poin tertinggi dari seluruh santri pada unit tanggung jawabnya.
+   *    - Keterangan: "Santri dengan poin tertinggi di unit Anda."
+   * D. Jika Kasie Kepesantrenan / Kabid (super_admin):
+   *    - Tampilkan santri dengan poin tertinggi dari seluruh unit (atau unit terpilih).
+   *    - Keterangan: "Santri dengan poin tertinggi dari seluruh unit."
+   */
+  const getDashboardSantriBinaan = (): {
+    santri: Santri[];
+    subtitle: string;
+    isOwnBinaan: boolean;
+  } => {
+    if (!user) {
+      return { santri: [], subtitle: '', isOwnBinaan: false };
+    }
+
+    const normalizedRole = mapJabatanToRole(user.role);
+
+    // KASIE / KABID / SUPERADMIN
+    if (normalizedRole === 'KASIE_KEPESANTRENAN') {
+      const sorted = sortSantriByPoints(santriList);
+      const subtitle = selectedKasieUnitFilter === 'ALL'
+        ? 'Santri dengan poin tertinggi dari seluruh unit.'
+        : `Santri dengan poin tertinggi di unit ${selectedKasieUnitFilter}.`;
+      return {
+        santri: sorted.slice(0, 8),
+        subtitle,
+        isOwnBinaan: false
+      };
+    }
+
+    // KOORDINATOR
+    if (normalizedRole === 'KOORDINATOR') {
+      // Santri scoped to coordinator's unit
+      const unitSantri = allSantriList.filter((s) => s.unit === user.unit);
+      const sorted = sortSantriByPoints(unitSantri);
+      return {
+        santri: sorted.slice(0, 8),
+        subtitle: 'Santri dengan poin tertinggi di unit Anda.',
+        isOwnBinaan: false
+      };
+    }
+
+    // MUSYRIF
+    const userUnit = user.unit as UnitPesantren;
+    const sameUnitSantri = allSantriList.filter((s) => s.unit === userUnit);
+
+    // Cari anak binaan yang terhubung dengan akun Musyrif
+    const cleanUserName = user.nama.toLowerCase().trim();
+    const ownBinaan = sameUnitSantri.filter((s) => {
+      if (s.musyrifId && s.musyrifId === user.id) return true;
+      if (s.musyrifNama && s.musyrifNama.toLowerCase().trim() === cleanUserName) return true;
+      if (s.musyrif && s.musyrif.toLowerCase().trim() === cleanUserName) return true;
+      return false;
+    });
+
+    if (ownBinaan.length > 0) {
+      const sortedOwn = sortSantriByPoints(ownBinaan);
+      return {
+        santri: sortedOwn,
+        subtitle: `Daftar anak binaan Anda di Unit ${userUnit}.`,
+        isOwnBinaan: true
+      };
+    }
+
+    // Fallback B: Jika belum memiliki anak binaan atau relasi kosong
+    const sortedFallback = sortSantriByPoints(sameUnitSantri);
+    return {
+      santri: sortedFallback.slice(0, 8),
+      subtitle: 'Santri dengan poin tertinggi di unit Anda — anak binaan belum terhubung.',
+      isOwnBinaan: false
+    };
   };
 
   return (
@@ -2139,6 +2267,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getMonthlyData,
         getDonutData,
         getTop5Santri,
+        getAllSortedSantriByPoints,
+        getDashboardSantriBinaan,
         getTopPelanggaran,
         getRecentPembinaan,
         getRecentActivities,

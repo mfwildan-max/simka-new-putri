@@ -59,18 +59,7 @@
 
   /* Compact button styling on mobile */
   button:not(.no-mobile-compact) {
-    font-size: 12.5px;
-  }
-
-  /* Compact table styling on mobile */
-  table {
-    font-size: 11.5px;
-  }
-  
-  th {
-    font-size: 10.5px;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
+    font-size: 12px;
   }
 
   /* Compact input styling on mobile */
